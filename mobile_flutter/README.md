@@ -71,6 +71,28 @@ There is no direct `ASSIGNED -> DELIVERED` action in the mobile UI. The app also
 
 Delivery completion requires receiver name, delivery note, a proof photo if no proof has already been uploaded, and COD confirmation/payment details when the order has a COD amount. Failed and returned deliveries require a reason from the practical predefined list, with notes for extra context.
 
+
+## GPS reliability and troubleshooting
+
+The production app keeps GPS tracking friendly for real shippers:
+
+- The GPS card shows clear states for GPS off, permission required, live tracking, sending, failed last update, and offline/waiting for network.
+- The last successful update time, estimated accuracy, pending retry count, and short connection status are visible without exposing raw coordinates.
+- Raw latitude/longitude remains hidden unless a tester expands **Debug location details**.
+- If a location upload fails, the app saves a small local retry queue and retries automatically on the normal tracking cadence once the API/network is reachable. The queue keeps only the latest reasonable set of pending points to avoid backend spam.
+- Selecting **Offline**, pressing **Stop**, or logging out stops the tracking timer cleanly.
+- Starting live GPS sends an immediate update, then continues at the configured available/busy intervals.
+
+Troubleshooting checklist for drivers and QA:
+
+1. Confirm the shipper is **Available** or **Busy**. GPS stays paused while the shipper is **Offline**.
+2. If the card says **GPS OFF**, turn on device Location Services and return to the app.
+3. If the card says **PERMISSION** or **SETTINGS**, allow location access for Shipper Mobile in system settings. Use the in-app **Open app settings** button when shown.
+4. If the card says **OFFLINE**, keep the app open or backgrounded with network restored. Pending locations retry automatically; avoid tapping **Send now** repeatedly.
+5. For iOS production testing, verify the app has the Location usage strings and `location` background mode in `ios/Runner/Info.plist`.
+6. For Android production testing, verify fine/coarse/background location and foreground-service permissions in `android/app/src/main/AndroidManifest.xml`.
+7. Test GPS on a real device whenever possible; simulators often return stale or low-accuracy locations.
+
 ## Backend endpoints used
 
 ```txt

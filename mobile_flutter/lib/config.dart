@@ -13,6 +13,9 @@ class AppConfig {
   /// Faster GPS upload interval while shipper is carrying active orders.
   static const Duration busyInterval = Duration(seconds: 8);
 
+  /// Maximum number of unsent GPS points kept on device for retry.
+  static const int gpsPendingQueueLimit = 5;
+
   /// Network timeout for API calls.
   static const Duration apiTimeout = Duration(seconds: 20);
   static const Duration uploadTimeout = Duration(seconds: 60);

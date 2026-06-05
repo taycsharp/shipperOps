@@ -26,6 +26,12 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>ShipperOps uses your location while you are on duty so dispatch can track deliveries, provide ETAs, and support customer handoff.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>ShipperOps uses your location while you are on duty for live delivery tracking.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ShipperOps uses your location to update delivery progress and help dispatch support your route.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -43,57 +49,16 @@
 					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
 					<key>UISceneStoryboardFile</key>
 					<string>Main</string>
-				
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location to track delivery routes and update shipper positions.</string>
-
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses your location in the background for live delivery tracking.</string>
-
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app uses your location for live shipper tracking.</string>
-
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-	</array>
-
-</dict>
+				</dict>
 			</array>
-		
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location to track delivery routes and update shipper positions.</string>
-
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses your location in the background for live delivery tracking.</string>
-
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app uses your location for live shipper tracking.</string>
-
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-	</array>
-
-</dict>
-	
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location to track delivery routes and update shipper positions.</string>
-
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses your location in the background for live delivery tracking.</string>
-
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app uses your location for live shipper tracking.</string>
-
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-	</array>
-
-</dict>
+		</dict>
+	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>location</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
@@ -111,20 +76,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app uses your location to track delivery routes and update shipper positions.</string>
-
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app uses your location in the background for live delivery tracking.</string>
-
-	<key>NSLocationAlwaysUsageDescription</key>
-	<string>This app uses your location for live shipper tracking.</string>
-
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>location</string>
-	</array>
-
 </dict>
 </plist>
