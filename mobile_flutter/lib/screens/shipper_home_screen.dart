@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -79,7 +80,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       await _bootstrapAfterAuth();
     } catch (e) {
       await _clearSavedSession();
-      setState(() => _error = 'Please login again. $e');
+      _setErrorFromException(e, fallback: 'Please login again.');
     } finally {
       if (mounted) {
         setState(() {
@@ -159,7 +160,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       setState(() => _currentUser = user);
       await _bootstrapAfterAuth();
     } catch (e) {
-      setState(() => _error = e.toString());
+      _setErrorFromException(e, fallback: 'Server temporarily unavailable. Please try again.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -176,13 +177,13 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       final orders = await _api.getAssignedOrders(shipperId);
       setState(() => _orders = orders.where((order) => order.shipperId == shipperId).toList());
     } catch (e) {
-      setState(() => _error = e.toString());
+      _setErrorFromException(e, fallback: 'Server temporarily unavailable. Please try again.');
     } finally {
       if (mounted) setState(() => _loadingOrders = false);
     }
   }
 
-  Future<void> _run(Future<void> Function() action) async {
+  Future<void> _run(Future<void> Function() action, {String fallbackError = 'Server temporarily unavailable. Please try again.'}) async {
     if (_busyAction) return;
     try {
       setState(() {
@@ -191,9 +192,49 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       });
       await action();
     } catch (e) {
-      if (mounted) setState(() => _error = e.toString());
+      _setErrorFromException(e, fallback: fallbackError);
     } finally {
       if (mounted) setState(() => _busyAction = false);
+    }
+  }
+
+  void _setErrorFromException(Object error, {required String fallback}) {
+    debugPrint('Shipper mobile action failed: $error');
+    if (!mounted) return;
+    setState(() => _error = _friendlyErrorMessage(error, fallback: fallback));
+  }
+
+  String _friendlyErrorMessage(Object error, {required String fallback}) {
+    if (error is ApiException && error.statusCode != null) {
+      if (error.statusCode! >= 500 || error.statusCode == 403) {
+        return 'Server temporarily unavailable. Please try again.';
+      }
+    }
+    final raw = error.toString().toLowerCase();
+    if (raw.contains('location services') || raw.contains('location permission')) {
+      return error.toString().replaceFirst('Exception: ', '');
+    }
+    if (raw.contains('socket') || raw.contains('network') || raw.contains('internet') || raw.contains('timed out')) {
+      return fallback.contains('GPS') ? 'Unable to send GPS. Check your internet connection.' : 'Server temporarily unavailable. Please try again.';
+    }
+    if (raw.contains('cloudflare') || raw.contains('<html') || raw.contains('server error') || raw.contains('internal server') || raw.contains('bad gateway') || raw.contains('service unavailable')) {
+      return 'Server temporarily unavailable. Please try again.';
+    }
+    if (fallback.contains('Order')) return fallback;
+    if (fallback.contains('GPS')) return fallback;
+    return fallback;
+  }
+
+  String _shipperStatusLabel(ShipperStatus status) {
+    switch (status) {
+      case ShipperStatus.available:
+        return 'Available';
+      case ShipperStatus.busy:
+        return 'Busy';
+      case ShipperStatus.suspended:
+        return 'Suspended';
+      case ShipperStatus.offline:
+        return 'Offline';
     }
   }
 
@@ -512,7 +553,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         await _tracking.setStatus(ShipperStatus.available);
       }
       await _loadOrders();
-    });
+    }, fallbackError: 'Order update failed. Please try again.');
   }
 
   Future<void> _uploadProof(DeliveryOrder order) async {
@@ -556,7 +597,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         deliveryNote: noteController.text,
       );
       await _loadOrders();
-    });
+    }, fallbackError: 'Order update failed. Please try again.');
   }
 
   Future<void> _callCustomer(String phone) async {
@@ -601,7 +642,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: const Text('Shipper Delivery Console'),
+        title: const Text('Delivery Console'),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         actions: [
@@ -612,17 +653,13 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       body: RefreshIndicator(
         onRefresh: _bootstrap,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
           children: [
             _buildConnectionBanner(),
-            const SizedBox(height: 12),
-            _buildUserBanner(),
-            const SizedBox(height: 12),
-            _buildBoundShipperCard(),
+            const SizedBox(height: 10),
             if (shipper != null) ...[
-              const SizedBox(height: 12),
-              _buildStatusCard(shipper, activeOrders, codTotal),
-              const SizedBox(height: 12),
+              _buildCompactHeader(shipper, activeOrders, codTotal),
+              const SizedBox(height: 10),
               _buildGpsCard(),
               const SizedBox(height: 18),
               _buildOrdersHeader(activeOrders),
@@ -635,7 +672,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                     await _run(() async {
                       await _api.updateItemStatus(order.id, itemId, status);
                       await _loadOrders();
-                    });
+                    }, fallbackError: 'Order update failed. Please try again.');
                   },
                   onOrderStatus: (orderId, status) => _updateOrderStatusDialog(order, status),
                   onUploadProof: () => _uploadProof(order),
@@ -739,41 +776,93 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     );
   }
 
-  Widget _buildUserBanner() {
-    final user = _currentUser;
-    return Card(
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-        title: Text(user?.name ?? 'User', style: const TextStyle(fontWeight: FontWeight.w900)),
-        subtitle: Text('${user?.email ?? ''} • ${roleToApi(user?.role ?? UserRole.shipper)}'),
-      ),
-    );
-  }
+  Widget _buildCompactHeader(ShipperProfile shipper, int activeOrders, double codTotal) {
+    final color = _shipperStatusColor(_state.status);
+    final statusLabel = _shipperStatusLabel(_state.status);
 
-  Widget _buildBoundShipperCard() {
-    final shipper = _selectedShipper;
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.7)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Authenticated shipper profile', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
-            if (shipper != null)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(child: Icon(Icons.delivery_dining)),
-                title: Text(shipper.displayName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: Text('${shipper.plateLabel} • ${shipper.vehicleType} • profile #${shipper.id}'),
-              )
-            else
-              const Text(
-                'No linked shipper profile is available for this login, so GPS updates and order actions are disabled.',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    shipper.displayName.substring(0, 1).toUpperCase(),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        shipper.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 2),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
+                        children: [
+                          _InlineMeta(icon: Icons.two_wheeler_outlined, text: shipper.vehicleType),
+                          _InlineMeta(icon: Icons.confirmation_number_outlined, text: shipper.plateLabel),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: color.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 9, color: color),
+                      const SizedBox(width: 6),
+                      Text(statusLabel, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(child: _SummaryBox(label: 'Active Orders', value: '$activeOrders', icon: Icons.assignment_outlined)),
+                const SizedBox(width: 8),
+                Expanded(child: _SummaryBox(label: 'COD Remaining', value: money(codTotal), icon: Icons.payments_outlined)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _StatusSegmentedControl(
+              current: _state.status,
+              busy: _busyAction,
+              onChanged: (status) => _run(() => _updateStatus(status)),
+            ),
             if (_error != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
             ],
           ],
@@ -782,78 +871,15 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     );
   }
 
-  Widget _buildStatusCard(ShipperProfile shipper, int activeOrders, double codTotal) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Text(
-                    shipper.displayName.substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(shipper.displayName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-                      Text('${shipper.phone.isEmpty ? 'No phone' : shipper.phone} • ${shipper.vehicleType} • ${shipper.plateLabel}'),
-                    ],
-                  ),
-                ),
-                StatusPill(
-                  label: statusToApi(_state.status),
-                  color: _shipperStatusColor(_state.status),
-                  icon: Icons.circle,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(child: _SummaryBox(label: 'Active orders', value: '$activeOrders', icon: Icons.assignment_outlined)),
-                const SizedBox(width: 10),
-                Expanded(child: _SummaryBox(label: 'COD remaining', value: money(codTotal), icon: Icons.payments_outlined)),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.tonal(
-                  onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.available)),
-                  child: const Text('Available'),
-                ),
-                FilledButton.tonal(
-                  onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.busy)),
-                  child: const Text('Busy'),
-                ),
-                OutlinedButton(
-                  onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.offline)),
-                  child: const Text('Offline'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildGpsCard() {
     final last = _state.lastPosition;
+    final lastUpdate = _state.lastSentAt == null ? 'No update yet' : shortTime(_state.lastSentAt);
+    final accuracy = last == null ? 'Waiting for GPS' : '${last.accuracy.toStringAsFixed(0)}m';
+    final trackingState = _state.isTracking ? 'Live tracking active' : 'Tracking stopped';
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -869,39 +895,57 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _state.isTracking || _busyAction || _shipperId == null ? null : () => _run(() => _tracking.start(_shipperId!)),
+                  onPressed: _state.isTracking || _busyAction || _shipperId == null ? null : () => _run(() => _tracking.start(_shipperId!), fallbackError: 'Unable to send GPS. Check your internet connection.'),
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Start live GPS'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: !_state.isTracking || _busyAction ? null : () => _run(() => _tracking.stop()),
+                  onPressed: !_state.isTracking || _busyAction ? null : () => _run(() => _tracking.stop(), fallbackError: 'Unable to send GPS. Check your internet connection.'),
                   icon: const Icon(Icons.stop),
                   label: const Text('Stop'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _busyAction || _shipperId == null ? null : () => _run(() => _tracking.sendOnce()),
+                  onPressed: _busyAction || _shipperId == null ? null : () => _run(() => _tracking.sendOnce(), fallbackError: 'Unable to send GPS. Check your internet connection.'),
                   icon: const Icon(Icons.my_location),
                   label: const Text('Send once'),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (last != null)
-              Text(
-                'Last GPS: ${last.latitude.toStringAsFixed(5)}, ${last.longitude.toStringAsFixed(5)} • accuracy ${last.accuracy.toStringAsFixed(0)}m • ${shortTime(_state.lastSentAt)}',
-              )
-            else
-              const Text('No GPS sent yet. Start tracking or send once.'),
+            const SizedBox(height: 10),
+            _GpsInfoGrid(lastUpdate: lastUpdate, accuracy: accuracy, trackingState: trackingState),
             if (_state.lastMessage != null) ...[
-              const SizedBox(height: 6),
-              Text(_state.lastMessage!, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Text(_state.lastMessage!, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
             ],
+            if (last != null) ...[
+              const SizedBox(height: 4),
+              ExpansionTile(
+                tilePadding: EdgeInsets.zero,
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                title: const Text('Debug location details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                childrenPadding: EdgeInsets.zero,
+                children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Lat ${last.latitude.toStringAsFixed(5)}, Lng ${last.longitude.toStringAsFixed(5)}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Start tracking or send once when you begin your route.'),
+              ),
           ],
         ),
       ),
@@ -942,11 +986,183 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   }
 
   Widget _buildNoShipper() {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(18),
-        child: Text('No shipper profiles found. Login as a SHIPPER user or create a shipper in the admin dashboard.'),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'No shipper profiles found. Login as a SHIPPER user or create a shipper in the admin dashboard.',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+            ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+
+class _StatusSegmentedControl extends StatelessWidget {
+  final ShipperStatus current;
+  final bool busy;
+  final ValueChanged<ShipperStatus> onChanged;
+
+  const _StatusSegmentedControl({required this.current, required this.busy, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    const statuses = [
+      (status: ShipperStatus.available, label: 'Available', icon: Icons.check_circle_outline),
+      (status: ShipperStatus.busy, label: 'Busy', icon: Icons.local_shipping_outlined),
+      (status: ShipperStatus.offline, label: 'Offline', icon: Icons.power_settings_new),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: statuses.map((entry) {
+          final selected = current == entry.status;
+          final color = selected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurfaceVariant;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: busy || selected ? null : () => onChanged(entry.status),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  constraints: const BoxConstraints(minHeight: 42),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: selected ? Colors.white : Colors.transparent,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(entry.icon, size: 16, color: color),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            entry.label,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(color: color, fontWeight: selected ? FontWeight.w900 : FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _GpsInfoGrid extends StatelessWidget {
+  final String lastUpdate;
+  final String accuracy;
+  final String trackingState;
+
+  const _GpsInfoGrid({required this.lastUpdate, required this.accuracy, required this.trackingState});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.55),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          _GpsInfoRow(icon: Icons.schedule, label: 'Last update', value: lastUpdate),
+          const SizedBox(height: 8),
+          _GpsInfoRow(icon: Icons.gps_fixed, label: 'Accuracy', value: accuracy),
+          const SizedBox(height: 8),
+          _GpsInfoRow(icon: Icons.route_outlined, label: 'Tracking state', value: trackingState),
+        ],
+      ),
+    );
+  }
+}
+
+class _GpsInfoRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _GpsInfoRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700))),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InlineMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _InlineMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          text.isEmpty ? 'Not set' : text,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+      ],
     );
   }
 }

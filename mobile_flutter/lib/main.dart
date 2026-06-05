@@ -15,7 +15,7 @@ class ShipperMobileApp extends StatelessWidget {
       title: 'Shipper Mobile',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0)),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F4C81)),
         useMaterial3: true,
         cardTheme: CardThemeData(
           elevation: 0,
@@ -23,6 +23,12 @@ class ShipperMobileApp extends StatelessWidget {
             borderRadius: BorderRadius.circular(18),
             side: BorderSide(color: Colors.grey.shade200),
           ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(minimumSize: const Size(48, 44)),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 44)),
         ),
       ),
       home: const ShipperHomeScreen(),

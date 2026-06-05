@@ -35,8 +35,19 @@ flutter run --dart-define=API_BASE_URL=https://ship-api.dolasol.com
 - Uploads proof of delivery image through `POST /orders/{id}/proof`
 - Call customer button using phone dialer
 - Open pickup/customer directions in Google Maps
-- Mobile-first professional UI
+- Mobile-first professional UI with a compact shipper header, non-wrapping status chips, scanner-friendly assigned-order cards, and production-safe GPS/error messaging
 
+
+
+## Production mobile UX notes
+
+The shipper home screen is optimized for fast route work on iPhone and Android:
+
+- A single compact header shows the bound shipper name, vehicle type, license plate, current status, active order count, and COD remaining.
+- The Available / Busy / Offline control is a segmented chip row designed to keep labels on one line on small screens.
+- GPS tracking keeps Start live GPS, Stop, and Send once actions visible, while showing last update time, accuracy, and tracking state first. Raw latitude/longitude is available only in debug location details.
+- Technical backend, Cloudflare, timeout, and network details are logged for debugging but converted to user-friendly messages such as server temporarily unavailable, unable to send GPS, or order update failed.
+- Assigned-order cards prioritize order code, customer name, phone, status, COD, and delivery address before secondary package details.
 
 ## Production shipper binding
 
