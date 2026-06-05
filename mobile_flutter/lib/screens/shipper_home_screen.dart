@@ -260,6 +260,37 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     }
   }
 
+  Future<void> _startLiveGps() async {
+    final shipperId = _shipperId;
+    if (shipperId == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Start live GPS?'),
+        content: const Text(
+          'ShipperOps uses your location to update dispatch, support accurate ETAs, and help customers receive deliveries. Your coordinates stay hidden in the app unless you open debug details.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Start GPS')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _run(
+      () => _tracking.start(shipperId),
+      fallbackError: 'Unable to start GPS. Check location permission and internet connection.',
+    );
+  }
+
+  Future<void> _openAppLocationSettings() async {
+    await _tracking.openAppSettings();
+  }
+
+  Future<void> _openDeviceLocationSettings() async {
+    await _tracking.openLocationSettings();
+  }
+
   static const Map<String, List<String>> _validOrderTransitions = {
     'ASSIGNED': ['PICKED_UP'],
     'PICKED_UP': ['IN_TRANSIT'],
@@ -873,9 +904,9 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
 
   Widget _buildGpsCard() {
     final last = _state.lastPosition;
-    final lastUpdate = _state.lastSentAt == null ? 'No update yet' : shortTime(_state.lastSentAt);
+    final lastUpdate = _state.lastSentAt == null ? 'No successful update yet' : shortTime(_state.lastSentAt);
     final accuracy = last == null ? 'Waiting for GPS' : '${last.accuracy.toStringAsFixed(0)}m';
-    final trackingState = _state.isTracking ? 'Live tracking active' : 'Tracking stopped';
+    final statusUi = _gpsStatusUi(_state);
 
     return Card(
       child: Padding(
@@ -889,11 +920,34 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                   child: Text('GPS tracking', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                 ),
                 StatusPill(
-                  label: _state.isTracking ? 'LIVE' : 'STOPPED',
-                  color: _state.isTracking ? Colors.green : Colors.grey,
-                  icon: _state.isTracking ? Icons.gps_fixed : Icons.gps_off,
+                  label: statusUi.label,
+                  color: statusUi.color,
+                  icon: statusUi.icon,
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: statusUi.color.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: statusUi.color.withOpacity(0.22)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(statusUi.icon, color: statusUi.color, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      statusUi.message,
+                      style: TextStyle(color: statusUi.color, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -901,27 +955,47 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _state.isTracking || _busyAction || _shipperId == null ? null : () => _run(() => _tracking.start(_shipperId!), fallbackError: 'Unable to send GPS. Check your internet connection.'),
+                  onPressed: _state.isTracking || _busyAction || _shipperId == null ? null : _startLiveGps,
                   icon: const Icon(Icons.play_arrow),
                   label: const Text('Start live GPS'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: !_state.isTracking || _busyAction ? null : () => _run(() => _tracking.stop(), fallbackError: 'Unable to send GPS. Check your internet connection.'),
+                  onPressed: !_state.isTracking || _busyAction ? null : () => _run(() => _tracking.stop(), fallbackError: 'Unable to stop GPS. Please try again.'),
                   icon: const Icon(Icons.stop),
                   label: const Text('Stop'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _busyAction || _shipperId == null ? null : () => _run(() => _tracking.sendOnce(), fallbackError: 'Unable to send GPS. Check your internet connection.'),
-                  icon: const Icon(Icons.my_location),
-                  label: const Text('Send once'),
+                  onPressed: _busyAction || _shipperId == null || _state.status == ShipperStatus.offline
+                      ? null
+                      : () => _run(() => _tracking.sendOnce(), fallbackError: 'Unable to send GPS. Check your internet connection.'),
+                  icon: _state.isSending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.my_location),
+                  label: const Text('Send now'),
                 ),
+                if (_state.gpsStatus == GpsStatus.permissionPermanentlyDenied)
+                  OutlinedButton.icon(
+                    onPressed: _openAppLocationSettings,
+                    icon: const Icon(Icons.settings_outlined),
+                    label: const Text('Open app settings'),
+                  ),
+                if (_state.gpsStatus == GpsStatus.gpsOff)
+                  OutlinedButton.icon(
+                    onPressed: _openDeviceLocationSettings,
+                    icon: const Icon(Icons.location_on_outlined),
+                    label: const Text('Turn on GPS'),
+                  ),
               ],
             ),
             const SizedBox(height: 10),
-            _GpsInfoGrid(lastUpdate: lastUpdate, accuracy: accuracy, trackingState: trackingState),
+            _GpsInfoGrid(
+              lastUpdate: lastUpdate,
+              accuracy: accuracy,
+              trackingState: statusUi.shortState,
+              pendingRetryCount: _state.pendingRetryCount,
+              connectionStatus: _state.connectionStatus,
+            ),
             if (_state.lastMessage != null) ...[
               const SizedBox(height: 8),
-              Text(_state.lastMessage!, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w700)),
+              Text(_state.lastMessage!, style: TextStyle(color: statusUi.color, fontWeight: FontWeight.w700)),
             ],
             if (last != null) ...[
               const SizedBox(height: 4),
@@ -944,12 +1018,89 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
             ] else
               const Padding(
                 padding: EdgeInsets.only(top: 8),
-                child: Text('Start tracking or send once when you begin your route.'),
+                child: Text('Start tracking when you begin your route. Coordinates are hidden by default.'),
               ),
           ],
         ),
       ),
     );
+  }
+
+  _GpsStatusUi _gpsStatusUi(TrackingState state) {
+    switch (state.gpsStatus) {
+      case GpsStatus.gpsOff:
+        return const _GpsStatusUi(
+          label: 'GPS OFF',
+          shortState: 'GPS off',
+          message: 'GPS is off. Turn on Location Services to continue tracking.',
+          color: Colors.deepOrange,
+          icon: Icons.gps_off,
+        );
+      case GpsStatus.permissionRequired:
+        return const _GpsStatusUi(
+          label: 'PERMISSION',
+          shortState: 'Permission needed',
+          message: 'Location permission is needed to share your delivery progress.',
+          color: Colors.orange,
+          icon: Icons.location_disabled_outlined,
+        );
+      case GpsStatus.permissionPermanentlyDenied:
+        return const _GpsStatusUi(
+          label: 'SETTINGS',
+          shortState: 'Open settings',
+          message: 'Location permission is off. Open app settings and allow location access.',
+          color: Colors.red,
+          icon: Icons.settings_outlined,
+        );
+      case GpsStatus.sendingLocation:
+        return const _GpsStatusUi(
+          label: 'SENDING',
+          shortState: 'Sending location',
+          message: 'Sending your latest location now…',
+          color: Colors.blue,
+          icon: Icons.cloud_upload_outlined,
+        );
+      case GpsStatus.lastUpdateFailed:
+        return const _GpsStatusUi(
+          label: 'FAILED',
+          shortState: 'Last update failed',
+          message: 'Last GPS update failed. We will try again automatically.',
+          color: Colors.red,
+          icon: Icons.error_outline,
+        );
+      case GpsStatus.offlineWaitingNetwork:
+        return const _GpsStatusUi(
+          label: 'OFFLINE',
+          shortState: 'Waiting for network',
+          message: 'No connection. Your latest location is saved and will retry automatically.',
+          color: Colors.orange,
+          icon: Icons.cloud_off_outlined,
+        );
+      case GpsStatus.trackingLive:
+        return const _GpsStatusUi(
+          label: 'LIVE',
+          shortState: 'Tracking live',
+          message: 'Tracking is live. Dispatch can see your latest successful location.',
+          color: Colors.green,
+          icon: Icons.gps_fixed,
+        );
+      case GpsStatus.stopped:
+        return state.status == ShipperStatus.offline
+            ? const _GpsStatusUi(
+                label: 'OFFLINE',
+                shortState: 'Offline',
+                message: 'You are offline. Go Available to restart GPS tracking.',
+                color: Colors.grey,
+                icon: Icons.power_settings_new,
+              )
+            : const _GpsStatusUi(
+                label: 'STOPPED',
+                shortState: 'Tracking stopped',
+                message: 'GPS tracking is stopped. Start live GPS when you begin your route.',
+                color: Colors.grey,
+                icon: Icons.gps_not_fixed,
+              );
+    }
   }
 
   Widget _buildOrdersHeader(int activeOrders) {
@@ -1085,12 +1236,36 @@ class _StatusSegmentedControl extends StatelessWidget {
   }
 }
 
+class _GpsStatusUi {
+  final String label;
+  final String shortState;
+  final String message;
+  final Color color;
+  final IconData icon;
+
+  const _GpsStatusUi({
+    required this.label,
+    required this.shortState,
+    required this.message,
+    required this.color,
+    required this.icon,
+  });
+}
+
 class _GpsInfoGrid extends StatelessWidget {
   final String lastUpdate;
   final String accuracy;
   final String trackingState;
+  final int pendingRetryCount;
+  final String connectionStatus;
 
-  const _GpsInfoGrid({required this.lastUpdate, required this.accuracy, required this.trackingState});
+  const _GpsInfoGrid({
+    required this.lastUpdate,
+    required this.accuracy,
+    required this.trackingState,
+    required this.pendingRetryCount,
+    required this.connectionStatus,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1107,6 +1282,10 @@ class _GpsInfoGrid extends StatelessWidget {
           _GpsInfoRow(icon: Icons.gps_fixed, label: 'Accuracy', value: accuracy),
           const SizedBox(height: 8),
           _GpsInfoRow(icon: Icons.route_outlined, label: 'Tracking state', value: trackingState),
+          const SizedBox(height: 8),
+          _GpsInfoRow(icon: Icons.cloud_queue_outlined, label: 'Pending retries', value: '$pendingRetryCount'),
+          const SizedBox(height: 8),
+          _GpsInfoRow(icon: Icons.wifi_tethering_outlined, label: 'Connection', value: connectionStatus),
         ],
       ),
     );
