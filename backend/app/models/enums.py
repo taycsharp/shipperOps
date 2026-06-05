@@ -1,0 +1,59 @@
+import enum
+
+
+class UserRole(str, enum.Enum):
+    ADMIN = "ADMIN"
+    DISPATCHER = "DISPATCHER"
+    SHIPPER = "SHIPPER"
+
+
+class ShipperStatus(str, enum.Enum):
+    AVAILABLE = "AVAILABLE"
+    BUSY = "BUSY"
+    OFFLINE = "OFFLINE"
+    SUSPENDED = "SUSPENDED"
+
+
+class DeliveryStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    ASSIGNED = "ASSIGNED"
+    PICKED_UP = "PICKED_UP"
+    IN_TRANSIT = "IN_TRANSIT"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    RETURNED = "RETURNED"
+    PARTIALLY_DELIVERED = "PARTIALLY_DELIVERED"
+
+
+class DeliveryItemStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    PICKED_UP = "PICKED_UP"
+    IN_TRANSIT = "IN_TRANSIT"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
+    RETURNED = "RETURNED"
+
+
+class OrderEventType(str, enum.Enum):
+    ORDER_CREATED = "ORDER_CREATED"
+    ORDER_ASSIGNED = "ORDER_ASSIGNED"
+    ORDER_STATUS_CHANGED = "ORDER_STATUS_CHANGED"
+    ITEM_STATUS_CHANGED = "ITEM_STATUS_CHANGED"
+    DELIVERY_FAILED = "DELIVERY_FAILED"
+    ORDER_RETURNED = "ORDER_RETURNED"
+    PROOF_UPLOADED = "PROOF_UPLOADED"
+
+
+class PaymentMethod(str, enum.Enum):
+    CASH = "CASH"
+    BANK_TRANSFER = "BANK_TRANSFER"
+    WALLET = "WALLET"
+    OTHER = "OTHER"
+
+
+class CodSettlementStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    COLLECTED = "COLLECTED"
+    SETTLED = "SETTLED"
+    DISCREPANCY = "DISCREPANCY"

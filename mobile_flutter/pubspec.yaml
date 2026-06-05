@@ -1,0 +1,20 @@
+name: shipper_mobile
+description: Flutter mobile app starter for the Shipper Management project.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+  geolocator: ^13.0.1
+  image_picker: ^1.1.2
+  url_launcher: ^6.3.1
+
+flutter:
+  uses-material-design: true
