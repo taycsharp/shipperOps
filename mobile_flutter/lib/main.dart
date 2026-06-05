@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/app_localizations.dart';
 import 'screens/shipper_home_screen.dart';
@@ -26,6 +27,11 @@ class ShipperMobileApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           locale: languageController.locale,
           supportedLocales: const [Locale('en'), Locale('vi')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F4C81)),
             useMaterial3: true,
