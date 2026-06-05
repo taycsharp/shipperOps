@@ -57,9 +57,9 @@ class LocationTrackingService {
   void bindShipper(int shipperId, {ShipperStatus? status}) {
     _shipperId = shipperId;
     if (status != null) {
-      _state = _state.copyWith(status: status, lastMessage: 'Selected shipper #$shipperId');
+      _state = _state.copyWith(status: status, lastMessage: 'Authenticated shipper profile #$shipperId');
     } else {
-      _state = _state.copyWith(lastMessage: 'Selected shipper #$shipperId');
+      _state = _state.copyWith(lastMessage: 'Authenticated shipper profile #$shipperId');
     }
     _emit();
   }
@@ -87,7 +87,7 @@ class LocationTrackingService {
   Future<void> setStatus(ShipperStatus status) async {
     final shipperId = _shipperId;
     if (shipperId == null) {
-      throw Exception('Please select a shipper first.');
+      throw Exception('No authenticated shipper profile is linked to this login.');
     }
     await api.updateStatus(shipperId, status);
     _state = _state.copyWith(status: status, lastMessage: 'Status changed to ${statusToApi(status)}');
@@ -98,7 +98,7 @@ class LocationTrackingService {
   Future<void> sendOnce() async {
     final shipperId = _shipperId;
     if (shipperId == null) {
-      throw Exception('Please select a shipper first.');
+      throw Exception('No authenticated shipper profile is linked to this login.');
     }
 
     final position = await Geolocator.getCurrentPosition(

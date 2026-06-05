@@ -48,24 +48,21 @@ class OrderCard extends StatelessWidget {
 
   List<Widget> _workflowButtons() {
     final status = order.status.toUpperCase();
-    if (order.isFinal && !order.needsProof) return [];
-
     final buttons = <Widget>[];
+
     if (status == 'ASSIGNED') {
       buttons.add(FilledButton.icon(
         onPressed: () => onOrderStatus(order.id, 'PICKED_UP'),
         icon: const Icon(Icons.inventory_2_outlined),
         label: const Text('Mark picked up'),
       ));
-    }
-    if (status == 'PICKED_UP') {
+    } else if (status == 'PICKED_UP') {
       buttons.add(FilledButton.icon(
         onPressed: () => onOrderStatus(order.id, 'IN_TRANSIT'),
         icon: const Icon(Icons.delivery_dining),
         label: const Text('Start delivery'),
       ));
-    }
-    if (status == 'IN_TRANSIT' || status == 'PICKED_UP' || status == 'ASSIGNED') {
+    } else if (status == 'IN_TRANSIT') {
       buttons.add(FilledButton.icon(
         onPressed: () => onOrderStatus(order.id, 'DELIVERED'),
         icon: const Icon(Icons.check_circle_outline),
@@ -76,8 +73,14 @@ class OrderCard extends StatelessWidget {
         icon: const Icon(Icons.report_problem_outlined),
         label: const Text('Failed'),
       ));
+      buttons.add(OutlinedButton.icon(
+        onPressed: () => onOrderStatus(order.id, 'RETURNED'),
+        icon: const Icon(Icons.assignment_return_outlined),
+        label: const Text('Returned'),
+      ));
     }
-    if (order.status.toUpperCase() == 'DELIVERED' || order.status.toUpperCase() == 'PARTIALLY_DELIVERED' || order.needsProof) {
+
+    if (status == 'DELIVERED' || status == 'PARTIALLY_DELIVERED' || order.needsProof) {
       buttons.add(OutlinedButton.icon(
         onPressed: onUploadProof,
         icon: const Icon(Icons.camera_alt_outlined),
