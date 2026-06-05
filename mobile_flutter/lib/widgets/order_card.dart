@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
 import '../models/delivery_models.dart';
 import '../utils/formatters.dart';
 import 'status_pill.dart';
@@ -12,6 +13,7 @@ class OrderCard extends StatelessWidget {
   final Future<void> Function() onCallCustomer;
   final Future<void> Function() onNavigatePickup;
   final Future<void> Function() onNavigateDelivery;
+  final AppLocalizations l10n;
 
   const OrderCard({
     super.key,
@@ -22,6 +24,7 @@ class OrderCard extends StatelessWidget {
     required this.onCallCustomer,
     required this.onNavigatePickup,
     required this.onNavigateDelivery,
+    required this.l10n,
   });
 
   Color _statusColor(String status) {
@@ -46,7 +49,7 @@ class OrderCard extends StatelessWidget {
     }
   }
 
-  List<Widget> _workflowButtons() {
+  List<Widget> _workflowButtons(AppLocalizations l10n) {
     final status = order.status.toUpperCase();
     final buttons = <Widget>[];
 
@@ -54,29 +57,29 @@ class OrderCard extends StatelessWidget {
       buttons.add(FilledButton.icon(
         onPressed: () => onOrderStatus(order.id, 'PICKED_UP'),
         icon: const Icon(Icons.inventory_2_outlined),
-        label: const Text('Mark picked up'),
+        label: Text(l10n.t('markPickedUp')),
       ));
     } else if (status == 'PICKED_UP') {
       buttons.add(FilledButton.icon(
         onPressed: () => onOrderStatus(order.id, 'IN_TRANSIT'),
         icon: const Icon(Icons.delivery_dining),
-        label: const Text('Start delivery'),
+        label: Text(l10n.t('startDelivery')),
       ));
     } else if (status == 'IN_TRANSIT') {
       buttons.add(FilledButton.icon(
         onPressed: () => onOrderStatus(order.id, 'DELIVERED'),
         icon: const Icon(Icons.check_circle_outline),
-        label: const Text('Delivered'),
+        label: Text(l10n.t('delivered')),
       ));
       buttons.add(OutlinedButton.icon(
         onPressed: () => onOrderStatus(order.id, 'FAILED'),
         icon: const Icon(Icons.report_problem_outlined),
-        label: const Text('Failed'),
+        label: Text(l10n.t('failed')),
       ));
       buttons.add(OutlinedButton.icon(
         onPressed: () => onOrderStatus(order.id, 'RETURNED'),
         icon: const Icon(Icons.assignment_return_outlined),
-        label: const Text('Returned'),
+        label: Text(l10n.t('returned')),
       ));
     }
 
@@ -84,7 +87,7 @@ class OrderCard extends StatelessWidget {
       buttons.add(OutlinedButton.icon(
         onPressed: onUploadProof,
         icon: const Icon(Icons.camera_alt_outlined),
-        label: Text(order.proofImageUrl.isEmpty ? 'Upload proof' : 'Replace proof'),
+        label: Text(order.proofImageUrl.isEmpty ? l10n.t('uploadProof') : l10n.t('replaceProof')),
       ));
     }
     return buttons;
@@ -123,29 +126,29 @@ class OrderCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                StatusPill(label: compactStatus(order.status), color: _statusColor(order.status)),
+                StatusPill(label: l10n.displayStatus(order.status), color: _statusColor(order.status)),
               ],
             ),
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(child: _InfoRow(icon: Icons.call_outlined, text: order.customerPhone.isEmpty ? 'Phone not set' : order.customerPhone)),
+                Expanded(child: _InfoRow(icon: Icons.call_outlined, text: order.customerPhone.isEmpty ? l10n.t('phoneNotSet') : order.customerPhone)),
                 const SizedBox(width: 8),
-                _CodBadge(amount: order.codRemaining, collected: order.codCollected),
+                _CodBadge(amount: order.codRemaining, collected: order.codCollected, l10n: l10n),
               ],
             ),
             const SizedBox(height: 8),
             _InfoRow(icon: Icons.location_on, text: order.deliveryAddress),
             const SizedBox(height: 6),
-            _InfoRow(icon: Icons.storefront, text: order.pickupAddress.isEmpty ? 'Pickup address not set' : order.pickupAddress),
+            _InfoRow(icon: Icons.storefront, text: order.pickupAddress.isEmpty ? l10n.t('pickupAddressNotSet') : order.pickupAddress),
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                OutlinedButton.icon(onPressed: onCallCustomer, icon: const Icon(Icons.call_outlined), label: const Text('Call')),
-                OutlinedButton.icon(onPressed: onNavigatePickup, icon: const Icon(Icons.storefront_outlined), label: const Text('Pickup map')),
-                OutlinedButton.icon(onPressed: onNavigateDelivery, icon: const Icon(Icons.near_me_outlined), label: const Text('Navigate')),
+                OutlinedButton.icon(onPressed: onCallCustomer, icon: const Icon(Icons.call_outlined), label: Text(l10n.t('callCustomer'))),
+                OutlinedButton.icon(onPressed: onNavigatePickup, icon: const Icon(Icons.storefront_outlined), label: Text(l10n.t('pickupMap'))),
+                OutlinedButton.icon(onPressed: onNavigateDelivery, icon: const Icon(Icons.near_me_outlined), label: Text(l10n.t('openMap'))),
               ],
             ),
             const SizedBox(height: 10),
@@ -157,10 +160,10 @@ class OrderCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Expanded(child: _Metric(label: 'COD total', value: money(order.codAmount))),
-                  Expanded(child: _Metric(label: 'Collected', value: order.codCollected ? money(order.codCollectedAmount) : 'No')),
-                  Expanded(child: _Metric(label: 'Items', value: '${order.totalItems}')),
-                  Expanded(child: _Metric(label: 'Weight', value: order.totalWeight > 0 ? '${order.totalWeight.toStringAsFixed(1)} kg' : '-')),
+                  Expanded(child: _Metric(label: l10n.t('codTotal'), value: money(order.codAmount))),
+                  Expanded(child: _Metric(label: l10n.t('collected'), value: order.codCollected ? money(order.codCollectedAmount) : l10n.t('no'))),
+                  Expanded(child: _Metric(label: l10n.t('items'), value: '${order.totalItems}')),
+                  Expanded(child: _Metric(label: l10n.t('weight'), value: order.totalWeight > 0 ? '${order.totalWeight.toStringAsFixed(1)} kg' : '-')),
                 ],
               ),
             ),
@@ -176,26 +179,26 @@ class OrderCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (order.receiverName.isNotEmpty) Text('Receiver: ${order.receiverName}', style: const TextStyle(fontWeight: FontWeight.w700)),
-                    if (order.failedReason.isNotEmpty) Text('Reason: ${compactStatus(order.failedReason)}', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
-                    if (order.deliveryNote.isNotEmpty) Text('Note: ${order.deliveryNote}'),
-                    if (order.proofImageUrl.isNotEmpty) const Text('Proof uploaded', style: TextStyle(color: Colors.green, fontWeight: FontWeight.w700)),
+                    if (order.receiverName.isNotEmpty) Text(l10n.receiver(order.receiverName), style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (order.failedReason.isNotEmpty) Text(l10n.reason(l10n.displayStatus(order.failedReason)), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+                    if (order.deliveryNote.isNotEmpty) Text(l10n.note(order.deliveryNote)),
+                    if (order.proofImageUrl.isNotEmpty) Text(l10n.t('proofUploaded'), style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w700)),
                   ],
                 ),
               ),
             ],
-            if (_workflowButtons().isNotEmpty) ...[
+            if (_workflowButtons(l10n).isNotEmpty) ...[
               const SizedBox(height: 14),
-              Wrap(spacing: 8, runSpacing: 8, children: _workflowButtons()),
+              Wrap(spacing: 8, runSpacing: 8, children: _workflowButtons(l10n)),
             ],
             if (order.items.isNotEmpty) ...[
               const Divider(height: 28),
               Text(
-                'Package items',
+                l10n.t('packageItems'),
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 8),
-              ...order.items.map((item) => _OrderItemTile(item: item, onItemStatus: onItemStatus)),
+              ...order.items.map((item) => _OrderItemTile(item: item, onItemStatus: onItemStatus, l10n: l10n)),
             ],
           ],
         ),
@@ -207,8 +210,9 @@ class OrderCard extends StatelessWidget {
 class _OrderItemTile extends StatelessWidget {
   final DeliveryOrderItem item;
   final Future<void> Function(int itemId, String status) onItemStatus;
+  final AppLocalizations l10n;
 
-  const _OrderItemTile({required this.item, required this.onItemStatus});
+  const _OrderItemTile({required this.item, required this.onItemStatus, required this.l10n});
 
   @override
   Widget build(BuildContext context) {
@@ -228,21 +232,21 @@ class _OrderItemTile extends StatelessWidget {
                 Text('${item.name} x${item.quantity}', style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
                 Text(
-                  '${item.sku.isEmpty ? 'No SKU' : item.sku} • ${money(item.lineTotal)} • ${compactStatus(item.status)} • delivered ${item.deliveredQuantity}/${item.quantity}',
+                  '${item.sku.isEmpty ? l10n.t('noSku') : item.sku} • ${money(item.lineTotal)} • ${l10n.displayStatus(item.status)} • ${l10n.deliveredQuantity(item.deliveredQuantity, item.quantity)}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Update item',
+            tooltip: l10n.t('updateItem'),
             onSelected: (status) => onItemStatus(item.id, status),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'PICKED_UP', child: Text('Picked up')),
-              PopupMenuItem(value: 'IN_TRANSIT', child: Text('In transit')),
-              PopupMenuItem(value: 'DELIVERED', child: Text('Delivered')),
-              PopupMenuItem(value: 'FAILED', child: Text('Failed')),
-              PopupMenuItem(value: 'RETURNED', child: Text('Returned')),
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'PICKED_UP', child: Text(l10n.t('pickedUp'))),
+              PopupMenuItem(value: 'IN_TRANSIT', child: Text(l10n.t('inTransit'))),
+              PopupMenuItem(value: 'DELIVERED', child: Text(l10n.t('delivered'))),
+              PopupMenuItem(value: 'FAILED', child: Text(l10n.t('failed'))),
+              PopupMenuItem(value: 'RETURNED', child: Text(l10n.t('returned'))),
             ],
           ),
         ],
@@ -255,8 +259,9 @@ class _OrderItemTile extends StatelessWidget {
 class _CodBadge extends StatelessWidget {
   final double amount;
   final bool collected;
+  final AppLocalizations l10n;
 
-  const _CodBadge({required this.amount, required this.collected});
+  const _CodBadge({required this.amount, required this.collected, required this.l10n});
 
   @override
   Widget build(BuildContext context) {
@@ -269,7 +274,7 @@ class _CodBadge extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.28)),
       ),
       child: Text(
-        collected ? 'COD collected' : 'COD ${money(amount)}',
+        l10n.codBadge(money(amount), collected),
         maxLines: 1,
         softWrap: false,
         style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12),
