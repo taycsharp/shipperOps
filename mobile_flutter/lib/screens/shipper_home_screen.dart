@@ -197,6 +197,19 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     }
   }
 
+  String _shipperStatusLabel(ShipperStatus status) {
+    switch (status) {
+      case ShipperStatus.available:
+        return 'Available';
+      case ShipperStatus.busy:
+        return 'Busy';
+      case ShipperStatus.suspended:
+        return 'Suspended';
+      case ShipperStatus.offline:
+        return 'Offline';
+    }
+  }
+
   Color _shipperStatusColor(ShipperStatus status) {
     switch (status) {
       case ShipperStatus.available:
@@ -601,7 +614,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: const Text('Shipper Delivery Console'),
+        title: const Text('Delivery Console'),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         actions: [
@@ -612,17 +625,13 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       body: RefreshIndicator(
         onRefresh: _bootstrap,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
           children: [
             _buildConnectionBanner(),
-            const SizedBox(height: 12),
-            _buildUserBanner(),
-            const SizedBox(height: 12),
-            _buildBoundShipperCard(),
+            const SizedBox(height: 10),
             if (shipper != null) ...[
-              const SizedBox(height: 12),
-              _buildStatusCard(shipper, activeOrders, codTotal),
-              const SizedBox(height: 12),
+              _buildCompactHeader(shipper, activeOrders, codTotal),
+              const SizedBox(height: 10),
               _buildGpsCard(),
               const SizedBox(height: 18),
               _buildOrdersHeader(activeOrders),
@@ -739,64 +748,34 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     );
   }
 
-  Widget _buildUserBanner() {
-    final user = _currentUser;
-    return Card(
-      child: ListTile(
-        leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-        title: Text(user?.name ?? 'User', style: const TextStyle(fontWeight: FontWeight.w900)),
-        subtitle: Text('${user?.email ?? ''} • ${roleToApi(user?.role ?? UserRole.shipper)}'),
-      ),
-    );
-  }
+  Widget _buildCompactHeader(ShipperProfile shipper, int activeOrders, double codTotal) {
+    final color = _shipperStatusColor(_state.status);
+    final statusLabel = _shipperStatusLabel(_state.status);
 
-  Widget _buildBoundShipperCard() {
-    final shipper = _selectedShipper;
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Authenticated shipper profile', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 10),
-            if (shipper != null)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const CircleAvatar(child: Icon(Icons.delivery_dining)),
-                title: Text(shipper.displayName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: Text('${shipper.plateLabel} • ${shipper.vehicleType} • profile #${shipper.id}'),
-              )
-            else
-              const Text(
-                'No linked shipper profile is available for this login, so GPS updates and order actions are disabled.',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            if (_error != null) ...[
-              const SizedBox(height: 10),
-              Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
-            ],
-          ],
-        ),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant.withOpacity(0.7)),
       ),
-    );
-  }
-
-  Widget _buildStatusCard(ShipperProfile shipper, int activeOrders, double codTotal) {
-    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  radius: 24,
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  alignment: Alignment.center,
                   child: Text(
                     shipper.displayName.substring(0, 1).toUpperCase(),
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 18),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -804,45 +783,82 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(shipper.displayName, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
-                      Text('${shipper.phone.isEmpty ? 'No phone' : shipper.phone} • ${shipper.vehicleType} • ${shipper.plateLabel}'),
+                      Text(
+                        shipper.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 2),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 2,
+                        children: [
+                          _InlineMeta(icon: Icons.two_wheeler_outlined, text: shipper.vehicleType),
+                          _InlineMeta(icon: Icons.confirmation_number_outlined, text: shipper.plateLabel),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                StatusPill(
-                  label: statusToApi(_state.status),
-                  color: _shipperStatusColor(_state.status),
-                  icon: Icons.circle,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: color.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 9, color: color),
+                      const SizedBox(width: 6),
+                      Text(statusLabel, style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12)),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _SummaryBox(label: 'Active orders', value: '$activeOrders', icon: Icons.assignment_outlined)),
-                const SizedBox(width: 10),
-                Expanded(child: _SummaryBox(label: 'COD remaining', value: money(codTotal), icon: Icons.payments_outlined)),
+                Expanded(child: _SummaryBox(label: 'Active Orders', value: '$activeOrders', icon: Icons.assignment_outlined)),
+                const SizedBox(width: 8),
+                Expanded(child: _SummaryBox(label: 'COD Remaining', value: money(codTotal), icon: Icons.payments_outlined)),
               ],
             ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            const SizedBox(height: 12),
+            Row(
               children: [
-                FilledButton.tonal(
-                  onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.available)),
-                  child: const Text('Available'),
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.available)),
+                    style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                    child: const Text('Available'),
+                  ),
                 ),
-                FilledButton.tonal(
-                  onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.busy)),
-                  child: const Text('Busy'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.busy)),
+                    style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                    child: const Text('Busy'),
+                  ),
                 ),
-                OutlinedButton(
-                  onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.offline)),
-                  child: const Text('Offline'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _busyAction ? null : () => _run(() => _updateStatus(ShipperStatus.offline)),
+                    style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                    child: const Text('Offline'),
+                  ),
                 ),
               ],
             ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+            ],
           ],
         ),
       ),
@@ -942,11 +958,48 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   }
 
   Widget _buildNoShipper() {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(18),
-        child: Text('No shipper profiles found. Login as a SHIPPER user or create a shipper in the admin dashboard.'),
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'No shipper profiles found. Login as a SHIPPER user or create a shipper in the admin dashboard.',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+            ],
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _InlineMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _InlineMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
+        const SizedBox(width: 4),
+        Text(
+          text.isEmpty ? 'Not set' : text,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w700,
+              ),
+        ),
+      ],
     );
   }
 }

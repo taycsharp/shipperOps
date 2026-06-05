@@ -1,0 +1,42 @@
+<svg width="390" height="844" viewBox="0 0 390 844" xmlns="http://www.w3.org/2000/svg">
+  <rect width="390" height="844" fill="#F5F7FB"/>
+  <rect y="0" width="390" height="64" fill="#FFFFFF"/>
+  <text x="20" y="40" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#1F2937">Shipper Delivery Console</text>
+  <rect x="16" y="80" width="358" height="48" rx="16" fill="#EAF3FF" stroke="#CBE0FF"/>
+  <text x="48" y="109" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#1F2937">Connected API: https://api.example.com</text>
+  <rect x="16" y="144" width="358" height="76" rx="16" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <circle cx="54" cy="182" r="22" fill="#E5E7EB"/>
+  <text x="88" y="176" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#111827">Alex Tran</text>
+  <text x="88" y="198" font-family="Arial, sans-serif" font-size="12" fill="#6B7280">alex@shipper.test • SHIPPER</text>
+  <rect x="16" y="236" width="358" height="128" rx="16" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="32" y="268" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#111827">Authenticated shipper profile</text>
+  <circle cx="54" cy="316" r="22" fill="#E8F1FF"/>
+  <text x="88" y="311" font-family="Arial, sans-serif" font-size="16" font-weight="800" fill="#111827">Alex Tran</text>
+  <text x="88" y="333" font-family="Arial, sans-serif" font-size="12" fill="#6B7280">BKS-4821 • Motorcycle • profile #12</text>
+  <rect x="16" y="380" width="358" height="216" rx="16" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <circle cx="56" cy="428" r="24" fill="#2563EB"/>
+  <text x="48" y="436" font-family="Arial, sans-serif" font-size="20" font-weight="900" fill="#FFFFFF">A</text>
+  <text x="92" y="423" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#111827">Alex Tran</text>
+  <text x="92" y="445" font-family="Arial, sans-serif" font-size="12" fill="#6B7280">+1 555 0123 • Motorcycle • BKS-4821</text>
+  <rect x="280" y="410" width="78" height="28" rx="14" fill="#E8F7EF" stroke="#A8E0BF"/>
+  <circle cx="296" cy="424" r="4" fill="#16A34A"/>
+  <text x="307" y="428" font-family="Arial, sans-serif" font-size="11" font-weight="900" fill="#15803D">AVAILABLE</text>
+  <rect x="32" y="472" width="156" height="62" rx="16" fill="#F1F5F9"/>
+  <text x="66" y="497" font-family="Arial, sans-serif" font-size="11" fill="#64748B">Active orders</text>
+  <text x="66" y="519" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="#111827">3</text>
+  <rect x="202" y="472" width="156" height="62" rx="16" fill="#F1F5F9"/>
+  <text x="236" y="497" font-family="Arial, sans-serif" font-size="11" fill="#64748B">COD remaining</text>
+  <text x="236" y="519" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="#111827">$245.00</text>
+  <rect x="32" y="552" width="90" height="32" rx="16" fill="#DBEAFE"/>
+  <text x="50" y="572" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#1D4ED8">Available</text>
+  <rect x="130" y="552" width="70" height="32" rx="16" fill="#DBEAFE"/>
+  <text x="152" y="572" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#1D4ED8">Busy</text>
+  <rect x="208" y="552" width="80" height="32" rx="16" fill="#FFFFFF" stroke="#CBD5E1"/>
+  <text x="229" y="572" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#334155">Offline</text>
+  <rect x="16" y="612" width="358" height="124" rx="16" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="32" y="645" font-family="Arial, sans-serif" font-size="16" font-weight="900" fill="#111827">GPS tracking</text>
+  <rect x="292" y="626" width="66" height="28" rx="14" fill="#F3F4F6"/>
+  <text x="306" y="644" font-family="Arial, sans-serif" font-size="11" font-weight="900" fill="#6B7280">STOPPED</text>
+  <rect x="16" y="760" width="358" height="60" rx="16" fill="#FFFFFF" stroke="#E5E7EB"/>
+  <text x="32" y="796" font-family="Arial, sans-serif" font-size="18" font-weight="900" fill="#111827">Assigned orders</text>
+</svg>
