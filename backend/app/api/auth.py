@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.models.enums import UserRole
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.user import UserCreate, UserRead
-from app.services.security import hash_password, verify_password, create_access_token, get_current_user, require_roles
+from app.services.security import hash_password, verify_password, create_access_token, get_current_user, require_admin_or_dispatcher, require_roles
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -37,6 +37,24 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
     token = create_access_token(str(user.id), user.role.value)
     return TokenResponse(access_token=token, role=user.role, user_id=user.id)
+
+
+@router.get("/users", response_model=list[UserRead])
+def list_users(
+    role: UserRole | None = None,
+    search: str | None = None,
+    limit: int = Query(default=100, ge=1, le=300),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin_or_dispatcher),
+):
+    query = db.query(User)
+    if role:
+        query = query.filter(User.role == role)
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter((User.name.ilike(like)) | (User.email.ilike(like)) | (User.phone.ilike(like)))
+    return query.order_by(User.id.asc()).offset(offset).limit(limit).all()
 
 
 @router.get("/me", response_model=UserRead)

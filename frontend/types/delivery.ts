@@ -11,6 +11,9 @@ export type Shipper = {
   current_lat?: number | null;
   current_lng?: number | null;
   last_seen_at?: string | null;
+  last_gps_update_at?: string | null;
+  is_online?: boolean;
+  active_order_count?: number;
   user?: {
     id: number;
     name: string;

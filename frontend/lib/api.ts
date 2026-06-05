@@ -68,6 +68,29 @@ export async function apiPost<T = unknown>(path: string, body: unknown): Promise
   return res.json();
 }
 
+export async function apiPut<T = unknown>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: "PUT",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401 && typeof window !== "undefined") {
+    clearToken();
+    window.location.href = "/login";
+  }
+  if (!res.ok) throw new Error(await parseApiError(res));
+  return res.json();
+}
+
+export async function apiDelete(path: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, { method: "DELETE", headers: authHeaders() });
+  if (res.status === 401 && typeof window !== "undefined") {
+    clearToken();
+    window.location.href = "/login";
+  }
+  if (!res.ok) throw new Error(await parseApiError(res));
+}
+
 export async function apiUpload<T = unknown>(path: string, formData: FormData): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { method: "POST", headers: authHeaders(), body: formData });
   if (!res.ok) throw new Error(await parseApiError(res));
