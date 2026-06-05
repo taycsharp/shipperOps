@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config.dart';
+import '../l10n/app_localizations.dart';
 import '../models/delivery_models.dart';
 import '../services/api_client.dart';
 import '../services/location_tracking_service.dart';
@@ -16,7 +17,9 @@ import '../widgets/order_card.dart';
 import '../widgets/status_pill.dart';
 
 class ShipperHomeScreen extends StatefulWidget {
-  const ShipperHomeScreen({super.key});
+  final LanguageController languageController;
+
+  const ShipperHomeScreen({super.key, required this.languageController});
 
   @override
   State<ShipperHomeScreen> createState() => _ShipperHomeScreenState();
@@ -43,6 +46,8 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   bool _loadingOrders = false;
   bool _busyAction = false;
   String? _error;
+
+  AppLocalizations get l10n => widget.languageController.strings;
 
   int? get _shipperId => _selectedShipper?.id;
   bool get _isLoggedIn => _client.token != null && _currentUser != null;
@@ -80,7 +85,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       await _bootstrapAfterAuth();
     } catch (e) {
       await _clearSavedSession();
-      _setErrorFromException(e, fallback: 'Please login again.');
+      _setErrorFromException(e, fallback: l10n.t('pleaseLoginAgain'));
     } finally {
       if (mounted) {
         setState(() {
@@ -130,7 +135,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         _selectedShipper = null;
         _orders = [];
         _error =
-            'This production mobile app is for SHIPPER accounts only. Use the web dashboard or a separate simulator for admin/dispatcher testing.';
+            l10n.t('shipperOnly');
       });
       return;
     }
@@ -140,7 +145,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       _selectedShipper = selected;
       _orders = [];
       _error = selected == null
-          ? 'No shipper profile is linked to ${user.email}. Ask an admin/dispatcher to create and link your shipper profile before using the mobile app.'
+          ? l10n.noShipperProfileLinked(user.email)
           : null;
     });
     if (selected != null) {
@@ -160,7 +165,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       setState(() => _currentUser = user);
       await _bootstrapAfterAuth();
     } catch (e) {
-      _setErrorFromException(e, fallback: 'Server temporarily unavailable. Please try again.');
+      _setErrorFromException(e, fallback: l10n.t('serverUnavailable'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -177,13 +182,13 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       final orders = await _api.getAssignedOrders(shipperId);
       setState(() => _orders = orders.where((order) => order.shipperId == shipperId).toList());
     } catch (e) {
-      _setErrorFromException(e, fallback: 'Server temporarily unavailable. Please try again.');
+      _setErrorFromException(e, fallback: l10n.t('serverUnavailable'));
     } finally {
       if (mounted) setState(() => _loadingOrders = false);
     }
   }
 
-  Future<void> _run(Future<void> Function() action, {String fallbackError = 'Server temporarily unavailable. Please try again.'}) async {
+  Future<void> _run(Future<void> Function() action, {String? fallbackError}) async {
     if (_busyAction) return;
     try {
       setState(() {
@@ -192,7 +197,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       });
       await action();
     } catch (e) {
-      _setErrorFromException(e, fallback: fallbackError);
+      _setErrorFromException(e, fallback: fallbackError ?? l10n.t('serverUnavailable'));
     } finally {
       if (mounted) setState(() => _busyAction = false);
     }
@@ -207,18 +212,18 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   String _friendlyErrorMessage(Object error, {required String fallback}) {
     if (error is ApiException && error.statusCode != null) {
       if (error.statusCode! >= 500 || error.statusCode == 403) {
-        return 'Server temporarily unavailable. Please try again.';
+        return l10n.t('serverUnavailable');
       }
     }
     final raw = error.toString().toLowerCase();
     if (raw.contains('location services') || raw.contains('location permission')) {
-      return error.toString().replaceFirst('Exception: ', '');
+      return l10n.serviceMessage(error.toString().replaceFirst('Exception: ', ''));
     }
     if (raw.contains('socket') || raw.contains('network') || raw.contains('internet') || raw.contains('timed out')) {
-      return fallback.contains('GPS') ? 'Unable to send GPS. Check your internet connection.' : 'Server temporarily unavailable. Please try again.';
+      return fallback.contains('GPS') ? l10n.t('unableSendGps') : l10n.t('serverUnavailable');
     }
     if (raw.contains('cloudflare') || raw.contains('<html') || raw.contains('server error') || raw.contains('internal server') || raw.contains('bad gateway') || raw.contains('service unavailable')) {
-      return 'Server temporarily unavailable. Please try again.';
+      return l10n.t('serverUnavailable');
     }
     if (fallback.contains('Order')) return fallback;
     if (fallback.contains('GPS')) return fallback;
@@ -228,13 +233,13 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   String _shipperStatusLabel(ShipperStatus status) {
     switch (status) {
       case ShipperStatus.available:
-        return 'Available';
+        return l10n.t('available');
       case ShipperStatus.busy:
-        return 'Busy';
+        return l10n.t('busy');
       case ShipperStatus.suspended:
-        return 'Suspended';
+        return l10n.t('suspended');
       case ShipperStatus.offline:
-        return 'Offline';
+        return l10n.t('offline');
     }
   }
 
@@ -266,20 +271,18 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Start live GPS?'),
-        content: const Text(
-          'ShipperOps uses your location to update dispatch, support accurate ETAs, and help customers receive deliveries. Your coordinates stay hidden in the app unless you open debug details.',
-        ),
+        title: Text(l10n.t('startLiveGpsQuestion')),
+        content: Text(l10n.t('startLiveGpsExplanation')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Start GPS')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.t('notNow'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l10n.t('startGps'))),
         ],
       ),
     );
     if (confirmed != true) return;
     await _run(
       () => _tracking.start(shipperId),
-      fallbackError: 'Unable to start GPS. Check location permission and internet connection.',
+      fallbackError: l10n.t('unableStartGps'),
     );
   }
 
@@ -303,10 +306,10 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
 
   String? _orderActionError(DeliveryOrder order, String nextStatus) {
     final shipperId = _shipperId;
-    if (shipperId == null) return 'No shipper profile is linked to this login.';
-    if (order.shipperId != shipperId) return 'This order is not assigned to your shipper profile.';
+    if (shipperId == null) return l10n.t('noShipperAction');
+    if (order.shipperId != shipperId) return l10n.t('orderNotAssigned');
     if (!_canTransition(order, nextStatus)) {
-      return 'Cannot change order ${order.orderCode} from ${compactStatus(order.status)} to ${compactStatus(nextStatus)}.';
+      return l10n.cannotChangeOrder(order.orderCode, l10n.displayStatus(order.status), l10n.displayStatus(nextStatus));
     }
     return null;
   }
@@ -325,12 +328,12 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.camera_alt_outlined),
-              title: const Text('Take photo'),
+              title: Text(l10n.t('takePhoto')),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library_outlined),
-              title: const Text('Choose from gallery'),
+              title: Text(l10n.t('chooseFromGallery')),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
           ],
@@ -375,44 +378,44 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Complete delivery'),
+          title: Text(l10n.t('completeDelivery')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: receiverController,
-                  decoration: const InputDecoration(labelText: 'Receiver name *', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: l10n.t('receiverNameRequiredLabel'), border: const OutlineInputBorder()),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: noteController,
                   maxLines: 3,
-                  decoration: const InputDecoration(labelText: 'Delivery note *', border: OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: l10n.t('deliveryNoteRequiredLabel'), border: const OutlineInputBorder()),
                 ),
                 if (order.codAmount > 0) ...[
                   const SizedBox(height: 10),
                   TextField(
                     controller: codController,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(labelText: 'COD collected amount (${money(order.codAmount)})', border: const OutlineInputBorder()),
+                    decoration: InputDecoration(labelText: l10n.codAmountLabel(money(order.codAmount)), border: const OutlineInputBorder()),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
                     value: paymentMethod,
-                    decoration: const InputDecoration(labelText: 'Payment method', border: OutlineInputBorder()),
-                    items: const [
-                      DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                      DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('Bank transfer')),
-                      DropdownMenuItem(value: 'WALLET', child: Text('Wallet')),
-                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                    decoration: InputDecoration(labelText: l10n.t('paymentMethod'), border: const OutlineInputBorder()),
+                    items: [
+                      DropdownMenuItem(value: 'CASH', child: Text(l10n.t('cash'))),
+                      DropdownMenuItem(value: 'BANK_TRANSFER', child: Text(l10n.t('bankTransfer'))),
+                      DropdownMenuItem(value: 'WALLET', child: Text(l10n.t('wallet'))),
+                      DropdownMenuItem(value: 'OTHER', child: Text(l10n.t('other'))),
                     ],
                     onChanged: (value) => setDialogState(() => paymentMethod = value ?? 'CASH'),
                   ),
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     value: codConfirmed,
-                    title: const Text('I confirm COD was collected'),
+                    title: Text(l10n.t('confirmCodCollected')),
                     onChanged: (value) => setDialogState(() => codConfirmed = value == true),
                   ),
                 ],
@@ -424,10 +427,10 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                   },
                   icon: const Icon(Icons.camera_alt_outlined),
                   label: Text(order.proofImageUrl.isEmpty && proofImage == null
-                      ? 'Upload proof photo *'
+                      ? l10n.t('uploadProofPhotoRequired')
                       : proofImage != null
-                          ? 'Proof selected'
-                          : 'Replace proof photo'),
+                          ? l10n.t('proofSelected')
+                          : l10n.t('replaceProofPhoto')),
                 ),
                 if (dialogError != null) ...[
                   const SizedBox(height: 10),
@@ -437,22 +440,22 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.t('cancel'))),
             FilledButton(
               onPressed: () {
                 final codAmount = double.tryParse(codController.text.trim());
                 final missingProof = order.proofImageUrl.isEmpty && proofImage == null;
                 String? validation;
                 if (receiverController.text.trim().isEmpty) {
-                  validation = 'Receiver name is required.';
+                  validation = l10n.t('receiverNameRequired');
                 } else if (noteController.text.trim().isEmpty) {
-                  validation = 'Delivery note is required.';
+                  validation = l10n.t('deliveryNoteRequired');
                 } else if (order.codAmount > 0 && !codConfirmed) {
-                  validation = 'Confirm COD collection before completing this delivery.';
+                  validation = l10n.t('confirmCodBeforeComplete');
                 } else if (order.codAmount > 0 && (codAmount == null || codAmount <= 0)) {
-                  validation = 'Enter the COD amount collected.';
+                  validation = l10n.t('enterCodCollected');
                 } else if (missingProof) {
-                  validation = 'Proof photo is required before marking delivered.';
+                  validation = l10n.t('proofPhotoRequired');
                 }
                 if (validation != null) {
                   setDialogState(() => dialogError = validation);
@@ -460,7 +463,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                 }
                 Navigator.pop(context, true);
               },
-              child: const Text('Mark delivered'),
+              child: Text(l10n.t('markDelivered')),
             ),
           ],
         ),
@@ -489,21 +492,21 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(status == 'FAILED' ? 'Mark failed' : 'Mark returned'),
+          title: Text(status == 'FAILED' ? l10n.t('markFailed') : l10n.t('markReturned')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
                   value: reason,
-                  decoration: InputDecoration(labelText: status == 'FAILED' ? 'Failed reason *' : 'Return reason *', border: const OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'CUSTOMER_NOT_AVAILABLE', child: Text('Customer not available')),
-                    DropdownMenuItem(value: 'WRONG_ADDRESS', child: Text('Wrong address')),
-                    DropdownMenuItem(value: 'REFUSED_DELIVERY', child: Text('Refused delivery')),
-                    DropdownMenuItem(value: 'DAMAGED_GOODS', child: Text('Damaged goods')),
-                    DropdownMenuItem(value: 'PAYMENT_ISSUE', child: Text('Payment issue')),
-                    DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                  decoration: InputDecoration(labelText: status == 'FAILED' ? l10n.t('failedReasonRequired') : l10n.t('returnReasonRequired'), border: const OutlineInputBorder()),
+                  items: [
+                    DropdownMenuItem(value: 'CUSTOMER_NOT_AVAILABLE', child: Text(l10n.t('customerNotAvailable'))),
+                    DropdownMenuItem(value: 'WRONG_ADDRESS', child: Text(l10n.t('wrongAddress'))),
+                    DropdownMenuItem(value: 'REFUSED_DELIVERY', child: Text(l10n.t('refusedDelivery'))),
+                    DropdownMenuItem(value: 'DAMAGED_GOODS', child: Text(l10n.t('damagedGoods'))),
+                    DropdownMenuItem(value: 'PAYMENT_ISSUE', child: Text(l10n.t('paymentIssue'))),
+                    DropdownMenuItem(value: 'OTHER', child: Text(l10n.t('other'))),
                   ],
                   onChanged: (value) => setDialogState(() => reason = value ?? reason),
                 ),
@@ -511,7 +514,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                 TextField(
                   controller: noteController,
                   maxLines: 3,
-                  decoration: InputDecoration(labelText: status == 'FAILED' ? 'Failed note' : 'Return note', border: const OutlineInputBorder()),
+                  decoration: InputDecoration(labelText: status == 'FAILED' ? l10n.t('failedNote') : l10n.t('returnNote'), border: const OutlineInputBorder()),
                 ),
                 if (dialogError != null) ...[
                   const SizedBox(height: 10),
@@ -521,16 +524,16 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.t('cancel'))),
             FilledButton(
               onPressed: () {
                 if (status == 'RETURNED' && reason == 'OTHER' && noteController.text.trim().isEmpty) {
-                  setDialogState(() => dialogError = 'Add a return note for Other.');
+                  setDialogState(() => dialogError = l10n.t('addReturnNoteOther'));
                   return;
                 }
                 Navigator.pop(context, true);
               },
-              child: Text(status == 'FAILED' ? 'Mark failed' : 'Mark returned'),
+              child: Text(status == 'FAILED' ? l10n.t('markFailed') : l10n.t('markReturned')),
             ),
           ],
         ),
@@ -584,7 +587,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         await _tracking.setStatus(ShipperStatus.available);
       }
       await _loadOrders();
-    }, fallbackError: 'Order update failed. Please try again.');
+    }, fallbackError: l10n.t('orderUpdateFailed'));
   }
 
   Future<void> _uploadProof(DeliveryOrder order) async {
@@ -596,25 +599,25 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Proof of delivery'),
+        title: Text(l10n.t('proofOfDelivery')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: receiverController,
-              decoration: const InputDecoration(labelText: 'Receiver name', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: l10n.t('receiverName'), border: const OutlineInputBorder()),
             ),
             const SizedBox(height: 10),
             TextField(
               controller: noteController,
               maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Delivery note', border: OutlineInputBorder()),
+              decoration: InputDecoration(labelText: l10n.t('deliveryNote'), border: const OutlineInputBorder()),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Upload')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l10n.t('cancel'))),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(l10n.t('upload'))),
         ],
       ),
     );
@@ -628,7 +631,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         deliveryNote: noteController.text,
       );
       await _loadOrders();
-    }, fallbackError: 'Order update failed. Please try again.');
+    }, fallbackError: l10n.t('orderUpdateFailed'));
   }
 
   Future<void> _callCustomer(String phone) async {
@@ -647,6 +650,20 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}');
     }
     await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+
+  Widget _buildLanguageMenu() {
+    return PopupMenuButton<String>(
+      tooltip: l10n.t('language'),
+      icon: const Icon(Icons.language),
+      initialValue: widget.languageController.code,
+      onSelected: widget.languageController.setCode,
+      itemBuilder: (context) => [
+        PopupMenuItem(value: 'en', child: Text(l10n.t('english'))),
+        PopupMenuItem(value: 'vi', child: Text(l10n.t('vietnamese'))),
+      ],
+    );
   }
 
   @override
@@ -673,12 +690,13 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
       appBar: AppBar(
-        title: const Text('Delivery Console'),
+        title: Text(l10n.t('deliveryConsole')),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         actions: [
-          IconButton(onPressed: _bootstrap, icon: const Icon(Icons.sync)),
-          IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
+          _buildLanguageMenu(),
+          IconButton(tooltip: l10n.t('refresh'), onPressed: _bootstrap, icon: const Icon(Icons.sync)),
+          IconButton(tooltip: l10n.t('logout'), onPressed: _logout, icon: const Icon(Icons.logout)),
         ],
       ),
       body: RefreshIndicator(
@@ -703,13 +721,14 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                     await _run(() async {
                       await _api.updateItemStatus(order.id, itemId, status);
                       await _loadOrders();
-                    }, fallbackError: 'Order update failed. Please try again.');
+                    }, fallbackError: l10n.t('orderUpdateFailed'));
                   },
                   onOrderStatus: (orderId, status) => _updateOrderStatusDialog(order, status),
                   onUploadProof: () => _uploadProof(order),
                   onCallCustomer: () => _callCustomer(order.customerPhone),
                   onNavigatePickup: () => _openDirections(order, pickup: true),
                   onNavigateDelivery: () => _openDirections(order, pickup: false),
+                  l10n: l10n,
                 ),
               ),
             ] else
@@ -737,41 +756,43 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Align(alignment: Alignment.centerRight, child: _buildLanguageMenu()),
+                        const SizedBox(height: 8),
                         CircleAvatar(
                           radius: 34,
                           backgroundColor: Theme.of(context).colorScheme.primary,
                           child: const Icon(Icons.local_shipping_outlined, color: Colors.white, size: 34),
                         ),
                         const SizedBox(height: 18),
-                        Text('Shipper Login', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                        Text(l10n.t('loginTitle'), textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
                         const SizedBox(height: 6),
-                        Text('Secure access for shipper GPS and delivery workflow', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+                        Text(l10n.t('loginSubtitle'), textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
                         const SizedBox(height: 20),
                         TextFormField(
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
-                          decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.email_outlined), border: OutlineInputBorder()),
-                          validator: (value) => value == null || !value.contains('@') ? 'Enter valid email' : null,
+                          decoration: InputDecoration(labelText: l10n.t('email'), prefixIcon: const Icon(Icons.email_outlined), border: const OutlineInputBorder()),
+                          validator: (value) => value == null || !value.contains('@') ? l10n.t('enterValidEmail') : null,
                         ),
                         const SizedBox(height: 12),
                         TextFormField(
                           controller: _passwordController,
                           obscureText: true,
-                          decoration: const InputDecoration(labelText: 'Password', prefixIcon: Icon(Icons.lock_outline), border: OutlineInputBorder()),
-                          validator: (value) => value == null || value.length < 3 ? 'Enter password' : null,
+                          decoration: InputDecoration(labelText: l10n.t('password'), prefixIcon: const Icon(Icons.lock_outline), border: const OutlineInputBorder()),
+                          validator: (value) => value == null || value.length < 3 ? l10n.t('enterPassword') : null,
                         ),
                         const SizedBox(height: 16),
                         FilledButton.icon(
                           onPressed: _busyAction ? null : _login,
                           icon: _busyAction ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.login),
-                          label: const Text('Login'),
+                          label: Text(l10n.t('login')),
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 12),
                           Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
                         ],
                         const SizedBox(height: 14),
-                        Text('API: ${AppConfig.apiBaseUrl}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+                        Text(l10n.api(AppConfig.apiBaseUrl), textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -798,7 +819,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              'Connected API: ${AppConfig.apiBaseUrl}',
+              l10n.connectedApi(AppConfig.apiBaseUrl),
               style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
             ),
           ),
@@ -853,8 +874,8 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                         spacing: 8,
                         runSpacing: 2,
                         children: [
-                          _InlineMeta(icon: Icons.two_wheeler_outlined, text: shipper.vehicleType),
-                          _InlineMeta(icon: Icons.confirmation_number_outlined, text: shipper.plateLabel),
+                          _InlineMeta(icon: Icons.two_wheeler_outlined, text: shipper.vehicleType, l10n: l10n),
+                          _InlineMeta(icon: Icons.confirmation_number_outlined, text: shipper.plateLabel, l10n: l10n),
                         ],
                       ),
                     ],
@@ -881,9 +902,9 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _SummaryBox(label: 'Active Orders', value: '$activeOrders', icon: Icons.assignment_outlined)),
+                Expanded(child: _SummaryBox(label: l10n.t('activeOrders'), value: '$activeOrders', icon: Icons.assignment_outlined)),
                 const SizedBox(width: 8),
-                Expanded(child: _SummaryBox(label: 'COD Remaining', value: money(codTotal), icon: Icons.payments_outlined)),
+                Expanded(child: _SummaryBox(label: l10n.t('codRemaining'), value: money(codTotal), icon: Icons.payments_outlined)),
               ],
             ),
             const SizedBox(height: 12),
@@ -891,6 +912,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
               current: _state.status,
               busy: _busyAction,
               onChanged: (status) => _run(() => _updateStatus(status)),
+              l10n: l10n,
             ),
             if (_error != null) ...[
               const SizedBox(height: 8),
@@ -904,8 +926,8 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
 
   Widget _buildGpsCard() {
     final last = _state.lastPosition;
-    final lastUpdate = _state.lastSentAt == null ? 'No successful update yet' : shortTime(_state.lastSentAt);
-    final accuracy = last == null ? 'Waiting for GPS' : '${last.accuracy.toStringAsFixed(0)}m';
+    final lastUpdate = _state.lastSentAt == null ? l10n.t('noSuccessfulUpdate') : shortTime(_state.lastSentAt);
+    final accuracy = last == null ? l10n.t('waitingForGps') : '${last.accuracy.toStringAsFixed(0)}m';
     final statusUi = _gpsStatusUi(_state);
 
     return Card(
@@ -917,7 +939,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
             Row(
               children: [
                 Expanded(
-                  child: Text('GPS tracking', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                  child: Text(l10n.t('gpsTracking'), style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
                 ),
                 StatusPill(
                   label: statusUi.label,
@@ -957,31 +979,31 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                 FilledButton.icon(
                   onPressed: _state.isTracking || _busyAction || _shipperId == null ? null : _startLiveGps,
                   icon: const Icon(Icons.play_arrow),
-                  label: const Text('Start live GPS'),
+                  label: Text(l10n.t('startLiveGps')),
                 ),
                 OutlinedButton.icon(
-                  onPressed: !_state.isTracking || _busyAction ? null : () => _run(() => _tracking.stop(), fallbackError: 'Unable to stop GPS. Please try again.'),
+                  onPressed: !_state.isTracking || _busyAction ? null : () => _run(() => _tracking.stop(), fallbackError: l10n.t('unableStopGps')),
                   icon: const Icon(Icons.stop),
-                  label: const Text('Stop'),
+                  label: Text(l10n.t('stop')),
                 ),
                 OutlinedButton.icon(
                   onPressed: _busyAction || _shipperId == null || _state.status == ShipperStatus.offline
                       ? null
-                      : () => _run(() => _tracking.sendOnce(), fallbackError: 'Unable to send GPS. Check your internet connection.'),
+                      : () => _run(() => _tracking.sendOnce(), fallbackError: l10n.t('unableSendGps')),
                   icon: _state.isSending ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.my_location),
-                  label: const Text('Send now'),
+                  label: Text(l10n.t('sendOnce')),
                 ),
                 if (_state.gpsStatus == GpsStatus.permissionPermanentlyDenied)
                   OutlinedButton.icon(
                     onPressed: _openAppLocationSettings,
                     icon: const Icon(Icons.settings_outlined),
-                    label: const Text('Open app settings'),
+                    label: Text(l10n.t('openAppSettings')),
                   ),
                 if (_state.gpsStatus == GpsStatus.gpsOff)
                   OutlinedButton.icon(
                     onPressed: _openDeviceLocationSettings,
                     icon: const Icon(Icons.location_on_outlined),
-                    label: const Text('Turn on GPS'),
+                    label: Text(l10n.t('turnOnGps')),
                   ),
               ],
             ),
@@ -991,11 +1013,12 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
               accuracy: accuracy,
               trackingState: statusUi.shortState,
               pendingRetryCount: _state.pendingRetryCount,
-              connectionStatus: _state.connectionStatus,
+              connectionStatus: l10n.connectionLabel(_state.connectionStatus),
+              l10n: l10n,
             ),
             if (_state.lastMessage != null) ...[
               const SizedBox(height: 8),
-              Text(_state.lastMessage!, style: TextStyle(color: statusUi.color, fontWeight: FontWeight.w700)),
+              Text(l10n.serviceMessage(_state.lastMessage!), style: TextStyle(color: statusUi.color, fontWeight: FontWeight.w700)),
             ],
             if (last != null) ...[
               const SizedBox(height: 4),
@@ -1003,22 +1026,22 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
                 tilePadding: EdgeInsets.zero,
                 dense: true,
                 visualDensity: VisualDensity.compact,
-                title: const Text('Debug location details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                title: Text(l10n.t('debugLocationDetails'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 childrenPadding: EdgeInsets.zero,
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      'Lat ${last.latitude.toStringAsFixed(5)}, Lng ${last.longitude.toStringAsFixed(5)}',
+                      l10n.latLng(last.latitude, last.longitude),
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ),
                 ],
               ),
             ] else
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text('Start tracking when you begin your route. Coordinates are hidden by default.'),
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(l10n.t('startTrackingHint')),
               ),
           ],
         ),
@@ -1029,74 +1052,74 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   _GpsStatusUi _gpsStatusUi(TrackingState state) {
     switch (state.gpsStatus) {
       case GpsStatus.gpsOff:
-        return const _GpsStatusUi(
-          label: 'GPS OFF',
-          shortState: 'GPS off',
-          message: 'GPS is off. Turn on Location Services to continue tracking.',
+        return _GpsStatusUi(
+          label: l10n.t('gpsOffLabel'),
+          shortState: l10n.t('gpsOffShort'),
+          message: l10n.t('gpsOffMessage'),
           color: Colors.deepOrange,
           icon: Icons.gps_off,
         );
       case GpsStatus.permissionRequired:
-        return const _GpsStatusUi(
-          label: 'PERMISSION',
-          shortState: 'Permission needed',
-          message: 'Location permission is needed to share your delivery progress.',
+        return _GpsStatusUi(
+          label: l10n.t('permissionLabel'),
+          shortState: l10n.t('permissionShort'),
+          message: l10n.t('permissionMessage'),
           color: Colors.orange,
           icon: Icons.location_disabled_outlined,
         );
       case GpsStatus.permissionPermanentlyDenied:
-        return const _GpsStatusUi(
-          label: 'SETTINGS',
-          shortState: 'Open settings',
-          message: 'Location permission is off. Open app settings and allow location access.',
+        return _GpsStatusUi(
+          label: l10n.t('settingsLabel'),
+          shortState: l10n.t('settingsShort'),
+          message: l10n.t('settingsMessage'),
           color: Colors.red,
           icon: Icons.settings_outlined,
         );
       case GpsStatus.sendingLocation:
-        return const _GpsStatusUi(
-          label: 'SENDING',
-          shortState: 'Sending location',
-          message: 'Sending your latest location now…',
+        return _GpsStatusUi(
+          label: l10n.t('sendingLabel'),
+          shortState: l10n.t('sendingShort'),
+          message: l10n.t('sendingMessage'),
           color: Colors.blue,
           icon: Icons.cloud_upload_outlined,
         );
       case GpsStatus.lastUpdateFailed:
-        return const _GpsStatusUi(
-          label: 'FAILED',
-          shortState: 'Last update failed',
-          message: 'Last GPS update failed. We will try again automatically.',
+        return _GpsStatusUi(
+          label: l10n.t('failedLabel'),
+          shortState: l10n.t('lastFailedShort'),
+          message: l10n.t('lastFailedMessage'),
           color: Colors.red,
           icon: Icons.error_outline,
         );
       case GpsStatus.offlineWaitingNetwork:
-        return const _GpsStatusUi(
-          label: 'OFFLINE',
-          shortState: 'Waiting for network',
-          message: 'No connection. Your latest location is saved and will retry automatically.',
+        return _GpsStatusUi(
+          label: l10n.t('offlineLabel'),
+          shortState: l10n.t('waitingNetworkShort'),
+          message: l10n.t('waitingNetworkMessage'),
           color: Colors.orange,
           icon: Icons.cloud_off_outlined,
         );
       case GpsStatus.trackingLive:
-        return const _GpsStatusUi(
-          label: 'LIVE',
-          shortState: 'Tracking live',
-          message: 'Tracking is live. Dispatch can see your latest successful location.',
+        return _GpsStatusUi(
+          label: l10n.t('liveLabel'),
+          shortState: l10n.t('liveShort'),
+          message: l10n.t('liveMessage'),
           color: Colors.green,
           icon: Icons.gps_fixed,
         );
       case GpsStatus.stopped:
         return state.status == ShipperStatus.offline
-            ? const _GpsStatusUi(
-                label: 'OFFLINE',
-                shortState: 'Offline',
-                message: 'You are offline. Go Available to restart GPS tracking.',
+            ? _GpsStatusUi(
+                label: l10n.t('offlineLabel'),
+                shortState: l10n.t('offline'),
+                message: l10n.t('offlineMessage'),
                 color: Colors.grey,
                 icon: Icons.power_settings_new,
               )
-            : const _GpsStatusUi(
-                label: 'STOPPED',
-                shortState: 'Tracking stopped',
-                message: 'GPS tracking is stopped. Start live GPS when you begin your route.',
+            : _GpsStatusUi(
+                label: l10n.t('stoppedLabel'),
+                shortState: l10n.t('stoppedShort'),
+                message: l10n.t('stoppedMessage'),
                 color: Colors.grey,
                 icon: Icons.gps_not_fixed,
               );
@@ -1108,28 +1131,28 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
       children: [
         Expanded(
           child: Text(
-            'Assigned orders',
+            l10n.t('assignedOrders'),
             style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ),
         if (_loadingOrders)
           const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
         else
-          Chip(label: Text('$activeOrders active')),
+          Chip(label: Text(l10n.activeCount(activeOrders))),
       ],
     );
   }
 
   Widget _buildEmptyOrders() {
-    return const Card(
+    return Card(
       child: Padding(
-        padding: EdgeInsets.all(18),
+        padding: const EdgeInsets.all(18),
         child: Column(
           children: [
-            Icon(Icons.inbox_outlined, size: 40),
-            SizedBox(height: 8),
-            Text('No assigned orders yet.'),
-            Text('Ask dispatcher/admin to assign an order to this shipper.'),
+            const Icon(Icons.inbox_outlined, size: 40),
+            const SizedBox(height: 8),
+            Text(l10n.t('noAssignedOrders')),
+            Text(l10n.t('askAssignOrder')),
           ],
         ),
       ),
@@ -1143,9 +1166,9 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'No shipper profiles found. Login as a SHIPPER user or create a shipper in the admin dashboard.',
-              style: TextStyle(fontWeight: FontWeight.w700),
+            Text(
+              l10n.t('noShipperFound'),
+              style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             if (_error != null) ...[
               const SizedBox(height: 10),
@@ -1163,15 +1186,16 @@ class _StatusSegmentedControl extends StatelessWidget {
   final ShipperStatus current;
   final bool busy;
   final ValueChanged<ShipperStatus> onChanged;
+  final AppLocalizations l10n;
 
-  const _StatusSegmentedControl({required this.current, required this.busy, required this.onChanged});
+  const _StatusSegmentedControl({required this.current, required this.busy, required this.onChanged, required this.l10n});
 
   @override
   Widget build(BuildContext context) {
-    const statuses = [
-      (status: ShipperStatus.available, label: 'Available', icon: Icons.check_circle_outline),
-      (status: ShipperStatus.busy, label: 'Busy', icon: Icons.local_shipping_outlined),
-      (status: ShipperStatus.offline, label: 'Offline', icon: Icons.power_settings_new),
+    final statuses = [
+      (status: ShipperStatus.available, label: l10n.t('available'), icon: Icons.check_circle_outline),
+      (status: ShipperStatus.busy, label: l10n.t('busy'), icon: Icons.local_shipping_outlined),
+      (status: ShipperStatus.offline, label: l10n.t('offline'), icon: Icons.power_settings_new),
     ];
 
     return Container(
@@ -1258,6 +1282,7 @@ class _GpsInfoGrid extends StatelessWidget {
   final String trackingState;
   final int pendingRetryCount;
   final String connectionStatus;
+  final AppLocalizations l10n;
 
   const _GpsInfoGrid({
     required this.lastUpdate,
@@ -1265,6 +1290,7 @@ class _GpsInfoGrid extends StatelessWidget {
     required this.trackingState,
     required this.pendingRetryCount,
     required this.connectionStatus,
+    required this.l10n,
   });
 
   @override
@@ -1277,15 +1303,15 @@ class _GpsInfoGrid extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _GpsInfoRow(icon: Icons.schedule, label: 'Last update', value: lastUpdate),
+          _GpsInfoRow(icon: Icons.schedule, label: l10n.t('lastUpdate'), value: lastUpdate),
           const SizedBox(height: 8),
-          _GpsInfoRow(icon: Icons.gps_fixed, label: 'Accuracy', value: accuracy),
+          _GpsInfoRow(icon: Icons.gps_fixed, label: l10n.t('accuracy'), value: accuracy),
           const SizedBox(height: 8),
-          _GpsInfoRow(icon: Icons.route_outlined, label: 'Tracking state', value: trackingState),
+          _GpsInfoRow(icon: Icons.route_outlined, label: l10n.t('trackingState'), value: trackingState),
           const SizedBox(height: 8),
-          _GpsInfoRow(icon: Icons.cloud_queue_outlined, label: 'Pending retries', value: '$pendingRetryCount'),
+          _GpsInfoRow(icon: Icons.cloud_queue_outlined, label: l10n.t('pendingRetries'), value: '$pendingRetryCount'),
           const SizedBox(height: 8),
-          _GpsInfoRow(icon: Icons.wifi_tethering_outlined, label: 'Connection', value: connectionStatus),
+          _GpsInfoRow(icon: Icons.wifi_tethering_outlined, label: l10n.t('connection'), value: connectionStatus),
         ],
       ),
     );
@@ -1324,8 +1350,9 @@ class _GpsInfoRow extends StatelessWidget {
 class _InlineMeta extends StatelessWidget {
   final IconData icon;
   final String text;
+  final AppLocalizations l10n;
 
-  const _InlineMeta({required this.icon, required this.text});
+  const _InlineMeta({required this.icon, required this.text, required this.l10n});
 
   @override
   Widget build(BuildContext context) {
@@ -1335,7 +1362,7 @@ class _InlineMeta extends StatelessWidget {
         Icon(icon, size: 14, color: Theme.of(context).colorScheme.onSurfaceVariant),
         const SizedBox(width: 4),
         Text(
-          text.isEmpty ? 'Not set' : text,
+          text.isEmpty ? l10n.t('notSet') : text,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w700,

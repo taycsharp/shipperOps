@@ -24,6 +24,7 @@ flutter run --dart-define=API_BASE_URL=https://ship-api.dolasol.com
 - Loads current user through `GET /auth/me`
 - Saves JWT locally with `shared_preferences`
 - Logout clears local token
+- English is the default UI language; drivers can switch between English and Vietnamese from the language menu, and the selection is saved locally with `shared_preferences` across app restarts
 - Binds the session to the authenticated SHIPPER user's own shipper profile only; no production profile selector is shown
 - Sends authenticated GPS updates to `POST /locations/update`
 - Updates shipper online/busy/offline status through `POST /shippers/{id}/status`
@@ -39,6 +40,20 @@ flutter run --dart-define=API_BASE_URL=https://ship-api.dolasol.com
 
 
 
+
+## Language support
+
+The Flutter app includes simple built-in English/Vietnamese localization without generated ARB files or backend changes.
+
+- Default language: **English**.
+- Supported languages: **English** and **Tiếng Việt**.
+- Change language from the globe menu on the login screen or top app bar.
+- The selected language is persisted in `shared_preferences` under `app_language_code` and is restored on restart.
+- Translations live in `lib/l10n/app_localizations.dart` and cover the visible shipper UI: login, delivery console, shipper statuses, GPS card, assigned orders, order statuses, workflow buttons, COD and proof upload labels, empty states, error/retry messages, logout/refresh, call/map actions, and failed/returned reason dialogs.
+- Backend/API enum values such as `ASSIGNED`, `IN_TRANSIT`, `DELIVERED`, `FAILED`, and `RETURNED` are still sent unchanged; only the display text is localized.
+
+Vietnamese terms intentionally use practical logistics wording such as **Bảng giao hàng**, **Đơn được giao**, **Bắt đầu GPS**, **Gửi vị trí**, **Sẵn sàng**, **Đang bận**, **Ngoại tuyến**, **Đã giao**, **Giao thất bại**, **Đã hoàn**, and **COD còn lại**.
+
 ## Production mobile UX notes
 
 The shipper home screen is optimized for fast route work on iPhone and Android:
@@ -48,6 +63,7 @@ The shipper home screen is optimized for fast route work on iPhone and Android:
 - GPS tracking keeps Start live GPS, Stop, and Send once actions visible, while showing last update time, accuracy, and tracking state first. Raw latitude/longitude is available only in debug location details.
 - Technical backend, Cloudflare, timeout, and network details are logged for debugging but converted to user-friendly messages such as server temporarily unavailable, unable to send GPS, or order update failed.
 - Assigned-order cards prioritize order code, customer name, phone, status, COD, and delivery address before secondary package details.
+- The language menu in the login screen and delivery console switches all shipper-facing labels, dialogs, GPS messages, order workflow actions, COD/proof labels, empty states, refresh/logout actions, failed/returned reason dialogs, call customer, and map actions at runtime. API enum/status values remain unchanged; only display labels are translated.
 
 ## Production shipper binding
 
