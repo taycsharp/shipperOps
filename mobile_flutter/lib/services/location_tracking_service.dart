@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../config.dart';
@@ -57,9 +58,9 @@ class LocationTrackingService {
   void bindShipper(int shipperId, {ShipperStatus? status}) {
     _shipperId = shipperId;
     if (status != null) {
-      _state = _state.copyWith(status: status, lastMessage: 'Authenticated shipper profile #$shipperId');
+      _state = _state.copyWith(status: status, lastMessage: 'Shipper profile ready');
     } else {
-      _state = _state.copyWith(lastMessage: 'Authenticated shipper profile #$shipperId');
+      _state = _state.copyWith(lastMessage: 'Shipper profile ready');
     }
     _emit();
   }
@@ -117,8 +118,7 @@ class LocationTrackingService {
     _state = _state.copyWith(
       lastPosition: position,
       lastSentAt: DateTime.now(),
-      lastMessage:
-          'GPS sent: ${position.latitude.toStringAsFixed(5)}, ${position.longitude.toStringAsFixed(5)}',
+      lastMessage: 'GPS sent successfully • accuracy ${position.accuracy.toStringAsFixed(0)}m',
     );
     _emit();
   }
@@ -132,7 +132,8 @@ class LocationTrackingService {
       try {
         await sendOnce();
       } catch (e) {
-        _state = _state.copyWith(lastMessage: 'GPS error: $e');
+        debugPrint('Background GPS send failed: $e');
+        _state = _state.copyWith(lastMessage: 'Unable to send GPS. Check your internet connection.');
         _emit();
       }
     });

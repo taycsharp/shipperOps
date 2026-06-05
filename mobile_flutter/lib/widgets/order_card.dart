@@ -93,40 +93,62 @@ class OrderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Text(
-                    order.orderCode,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        order.orderCode,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        order.customerName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ],
                   ),
                 ),
-                StatusPill(label: order.status, color: _statusColor(order.status)),
+                const SizedBox(width: 8),
+                StatusPill(label: compactStatus(order.status), color: _statusColor(order.status)),
               ],
             ),
             const SizedBox(height: 10),
-            _InfoRow(icon: Icons.person, text: '${order.customerName}  ${order.customerPhone}'),
+            Row(
+              children: [
+                Expanded(child: _InfoRow(icon: Icons.call_outlined, text: order.customerPhone.isEmpty ? 'Phone not set' : order.customerPhone)),
+                const SizedBox(width: 8),
+                _CodBadge(amount: order.codRemaining, collected: order.codCollected),
+              ],
+            ),
             const SizedBox(height: 8),
+            _InfoRow(icon: Icons.location_on, text: order.deliveryAddress),
+            const SizedBox(height: 6),
+            _InfoRow(icon: Icons.storefront, text: order.pickupAddress.isEmpty ? 'Pickup address not set' : order.pickupAddress),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                OutlinedButton.icon(onPressed: onCallCustomer, icon: const Icon(Icons.call_outlined), label: const Text('Call customer')),
+                OutlinedButton.icon(onPressed: onCallCustomer, icon: const Icon(Icons.call_outlined), label: const Text('Call')),
                 OutlinedButton.icon(onPressed: onNavigatePickup, icon: const Icon(Icons.storefront_outlined), label: const Text('Pickup map')),
-                OutlinedButton.icon(onPressed: onNavigateDelivery, icon: const Icon(Icons.near_me_outlined), label: const Text('Customer map')),
+                OutlinedButton.icon(onPressed: onNavigateDelivery, icon: const Icon(Icons.near_me_outlined), label: const Text('Navigate')),
               ],
             ),
             const SizedBox(height: 10),
-            _InfoRow(icon: Icons.storefront, text: order.pickupAddress.isEmpty ? 'Pickup address not set' : order.pickupAddress),
-            const SizedBox(height: 6),
-            _InfoRow(icon: Icons.location_on, text: order.deliveryAddress),
-            const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -135,7 +157,7 @@ class OrderCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Expanded(child: _Metric(label: 'COD', value: money(order.codAmount))),
+                  Expanded(child: _Metric(label: 'COD total', value: money(order.codAmount))),
                   Expanded(child: _Metric(label: 'Collected', value: order.codCollected ? money(order.codCollectedAmount) : 'No')),
                   Expanded(child: _Metric(label: 'Items', value: '${order.totalItems}')),
                   Expanded(child: _Metric(label: 'Weight', value: order.totalWeight > 0 ? '${order.totalWeight.toStringAsFixed(1)} kg' : '-')),
@@ -224,6 +246,33 @@ class _OrderItemTile extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _CodBadge extends StatelessWidget {
+  final double amount;
+  final bool collected;
+
+  const _CodBadge({required this.amount, required this.collected});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = collected ? Colors.green : const Color(0xFFB45309);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.10),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(0.28)),
+      ),
+      child: Text(
+        collected ? 'COD collected' : 'COD ${money(amount)}',
+        maxLines: 1,
+        softWrap: false,
+        style: TextStyle(color: color, fontWeight: FontWeight.w900, fontSize: 12),
       ),
     );
   }
