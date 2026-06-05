@@ -96,18 +96,30 @@ class ApiClient {
 
   dynamic _decode(http.Response response) {
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      String detail = response.body;
+      var detail = response.body;
       try {
         final decoded = jsonDecode(response.body);
         if (decoded is Map && decoded['detail'] != null) {
-          detail = decoded['detail'].toString();
+          detail = _formatErrorDetail(decoded['detail']);
         }
       } catch (_) {
         // Keep raw body.
       }
-      throw ApiException('HTTP ${response.statusCode}: $detail', statusCode: response.statusCode);
+      throw ApiException(detail.isEmpty ? 'Request failed. Please try again.' : detail, statusCode: response.statusCode);
     }
     if (response.body.isEmpty) return null;
     return jsonDecode(response.body);
+  }
+
+  String _formatErrorDetail(dynamic detail) {
+    if (detail is String) return detail;
+    if (detail is List) {
+      return detail.map(_formatErrorDetail).where((value) => value.isNotEmpty).join('\n');
+    }
+    if (detail is Map) {
+      final message = detail['msg'] ?? detail['message'] ?? detail['detail'];
+      if (message != null) return message.toString();
+    }
+    return detail.toString();
   }
 }

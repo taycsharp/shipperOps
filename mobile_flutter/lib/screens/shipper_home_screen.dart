@@ -23,7 +23,6 @@ class ShipperHomeScreen extends StatefulWidget {
 
 class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   static const _tokenKey = 'auth_token';
-  static const _shipperIdKey = 'shipper_id';
 
   late final ApiClient _client;
   late final ShipperApi _api;
@@ -35,7 +34,6 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   final _picker = ImagePicker();
 
   AppUser? _currentUser;
-  List<ShipperProfile> _shippers = [];
   List<DeliveryOrder> _orders = [];
   ShipperProfile? _selectedShipper;
   TrackingState _state = TrackingState(isTracking: false, status: ShipperStatus.offline);
@@ -110,7 +108,6 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     setState(() {
       _currentUser = null;
       _selectedShipper = null;
-      _shippers = [];
       _orders = [];
       _state = TrackingState(isTracking: false, status: ShipperStatus.offline);
       _error = null;
@@ -124,23 +121,29 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
   }
 
   Future<void> _bootstrapAfterAuth() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedId = prefs.getInt(_shipperIdKey);
-    final shippers = await _api.getShippers();
-    ShipperProfile? selected;
-    if (shippers.isNotEmpty) {
-      selected = shippers.firstWhere(
-        (shipper) => shipper.id == savedId,
-        orElse: () => shippers.first,
-      );
+    final user = _currentUser;
+    if (user == null) return;
+    if (user.role != UserRole.shipper) {
+      await _tracking.stop().catchError((_) {});
+      setState(() {
+        _selectedShipper = null;
+        _orders = [];
+        _error =
+            'This production mobile app is for SHIPPER accounts only. Use the web dashboard or a separate simulator for admin/dispatcher testing.';
+      });
+      return;
     }
+
+    final selected = await _api.getAuthenticatedShipperProfile(user.id);
     setState(() {
-      _shippers = shippers;
       _selectedShipper = selected;
+      _orders = [];
+      _error = selected == null
+          ? 'No shipper profile is linked to ${user.email}. Ask an admin/dispatcher to create and link your shipper profile before using the mobile app.'
+          : null;
     });
     if (selected != null) {
       _tracking.bindShipper(selected.id, status: selected.status);
-      await _saveShipperId(selected.id);
       await _loadOrders();
     }
   }
@@ -162,24 +165,6 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     }
   }
 
-  Future<void> _saveShipperId(int id) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_shipperIdKey, id);
-  }
-
-  Future<void> _selectShipper(int? shipperId) async {
-    if (shipperId == null) return;
-    final selected = _shippers.firstWhere((shipper) => shipper.id == shipperId);
-    setState(() {
-      _selectedShipper = selected;
-      _orders = [];
-      _error = null;
-    });
-    _tracking.bindShipper(selected.id, status: selected.status);
-    await _saveShipperId(selected.id);
-    await _loadOrders();
-  }
-
   Future<void> _loadOrders() async {
     final shipperId = _shipperId;
     if (shipperId == null) return;
@@ -189,7 +174,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     });
     try {
       final orders = await _api.getAssignedOrders(shipperId);
-      setState(() => _orders = orders);
+      setState(() => _orders = orders.where((order) => order.shipperId == shipperId).toList());
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {
@@ -234,104 +219,32 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     }
   }
 
-  Future<void> _updateOrderStatusDialog(DeliveryOrder order, String status) async {
-    final noteController = TextEditingController();
-    final receiverController = TextEditingController(text: order.receiverName);
-    final codController = TextEditingController(text: order.codAmount > 0 ? order.codAmount.toStringAsFixed(0) : '');
-    String failedReason = 'CUSTOMER_NOT_AVAILABLE';
-    String paymentMethod = 'CASH';
-    final needsDeliveryInfo = status == 'DELIVERED' || status == 'PARTIALLY_DELIVERED';
-    final needsFailedReason = status == 'FAILED' || status == 'RETURNED';
+  static const Map<String, List<String>> _validOrderTransitions = {
+    'ASSIGNED': ['PICKED_UP'],
+    'PICKED_UP': ['IN_TRANSIT'],
+    'IN_TRANSIT': ['DELIVERED', 'FAILED', 'RETURNED'],
+  };
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Update to ${compactStatus(status)}'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (needsDeliveryInfo) ...[
-                TextField(
-                  controller: receiverController,
-                  decoration: const InputDecoration(labelText: 'Receiver name', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: codController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'COD collected amount', border: OutlineInputBorder()),
-                ),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: paymentMethod,
-                  decoration: const InputDecoration(labelText: 'Payment method', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'CASH', child: Text('Cash')),
-                    DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('Bank transfer')),
-                    DropdownMenuItem(value: 'WALLET', child: Text('Wallet')),
-                    DropdownMenuItem(value: 'OTHER', child: Text('Other')),
-                  ],
-                  onChanged: (value) => paymentMethod = value ?? 'CASH',
-                ),
-              ],
-              if (needsFailedReason) ...[
-                DropdownButtonFormField<String>(
-                  value: failedReason,
-                  decoration: const InputDecoration(labelText: 'Failed reason', border: OutlineInputBorder()),
-                  items: const [
-                    DropdownMenuItem(value: 'CUSTOMER_NOT_AVAILABLE', child: Text('Customer not available')),
-                    DropdownMenuItem(value: 'WRONG_ADDRESS', child: Text('Wrong address')),
-                    DropdownMenuItem(value: 'DAMAGED_GOODS', child: Text('Damaged goods')),
-                    DropdownMenuItem(value: 'REFUSED_DELIVERY', child: Text('Refused delivery')),
-                    DropdownMenuItem(value: 'REATTEMPT_REQUIRED', child: Text('Reattempt required')),
-                    DropdownMenuItem(value: 'RETURN_TO_WAREHOUSE', child: Text('Return to warehouse')),
-                  ],
-                  onChanged: (value) => failedReason = value ?? 'CUSTOMER_NOT_AVAILABLE',
-                ),
-              ],
-              const SizedBox(height: 10),
-              TextField(
-                controller: noteController,
-                maxLines: 3,
-                decoration: const InputDecoration(labelText: 'Note', border: OutlineInputBorder()),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm')),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    await _run(() async {
-      await _api.updateOrderStatus(
-        order.id,
-        status,
-        note: noteController.text,
-        failedReason: needsFailedReason ? failedReason : null,
-        receiverName: needsDeliveryInfo ? receiverController.text : null,
-        codCollected: needsDeliveryInfo && order.codAmount > 0,
-        codCollectedAmount: needsDeliveryInfo ? double.tryParse(codController.text) : null,
-        paymentMethod: needsDeliveryInfo && order.codAmount > 0 ? paymentMethod : null,
-      );
-      if (status == 'IN_TRANSIT' || status == 'PICKED_UP') {
-        await _tracking.setStatus(ShipperStatus.busy);
-      }
-      if (status == 'DELIVERED' || status == 'FAILED' || status == 'RETURNED' || status == 'PARTIALLY_DELIVERED') {
-        await _tracking.setStatus(ShipperStatus.available);
-      }
-      await _loadOrders();
-    });
+  bool _canTransition(DeliveryOrder order, String nextStatus) {
+    return _validOrderTransitions[order.status.toUpperCase()]?.contains(nextStatus) ?? false;
   }
 
-  Future<void> _uploadProof(DeliveryOrder order) async {
-    final receiverController = TextEditingController(text: order.receiverName);
-    final noteController = TextEditingController(text: order.deliveryNote);
+  String? _orderActionError(DeliveryOrder order, String nextStatus) {
+    final shipperId = _shipperId;
+    if (shipperId == null) return 'No shipper profile is linked to this login.';
+    if (order.shipperId != shipperId) return 'This order is not assigned to your shipper profile.';
+    if (!_canTransition(order, nextStatus)) {
+      return 'Cannot change order ${order.orderCode} from ${compactStatus(order.status)} to ${compactStatus(nextStatus)}.';
+    }
+    return null;
+  }
+
+  void _showActionError(String message) {
+    setState(() => _error = message);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<XFile?> _pickProofImage() async {
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       builder: (context) => SafeArea(
@@ -352,9 +265,260 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
         ),
       ),
     );
-    if (source == null) return;
+    if (source == null) return null;
+    return _picker.pickImage(source: source, imageQuality: 78, maxWidth: 1600);
+  }
 
-    final image = await _picker.pickImage(source: source, imageQuality: 78, maxWidth: 1600);
+  Future<void> _updateOrderStatusDialog(DeliveryOrder order, String status) async {
+    final actionError = _orderActionError(order, status);
+    if (actionError != null) {
+      _showActionError(actionError);
+      return;
+    }
+
+    if (status == 'PICKED_UP' || status == 'IN_TRANSIT') {
+      await _submitOrderStatus(order, status);
+      return;
+    }
+    if (status == 'DELIVERED') {
+      await _showDeliveredDialog(order);
+      return;
+    }
+    if (status == 'FAILED' || status == 'RETURNED') {
+      await _showExceptionDialog(order, status);
+    }
+  }
+
+  Future<void> _showDeliveredDialog(DeliveryOrder order) async {
+    final receiverController = TextEditingController(text: order.receiverName);
+    final noteController = TextEditingController(text: order.deliveryNote);
+    final codController = TextEditingController(text: order.codAmount > 0 ? order.codAmount.toStringAsFixed(0) : '');
+    String paymentMethod = order.paymentMethod.isNotEmpty ? order.paymentMethod : 'CASH';
+    bool codConfirmed = order.codAmount <= 0 || order.codCollected;
+    XFile? proofImage;
+    String? dialogError;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Complete delivery'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: receiverController,
+                  decoration: const InputDecoration(labelText: 'Receiver name *', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: noteController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Delivery note *', border: OutlineInputBorder()),
+                ),
+                if (order.codAmount > 0) ...[
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: codController,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(labelText: 'COD collected amount (${money(order.codAmount)})', border: const OutlineInputBorder()),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: paymentMethod,
+                    decoration: const InputDecoration(labelText: 'Payment method', border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'CASH', child: Text('Cash')),
+                      DropdownMenuItem(value: 'BANK_TRANSFER', child: Text('Bank transfer')),
+                      DropdownMenuItem(value: 'WALLET', child: Text('Wallet')),
+                      DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                    ],
+                    onChanged: (value) => setDialogState(() => paymentMethod = value ?? 'CASH'),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: codConfirmed,
+                    title: const Text('I confirm COD was collected'),
+                    onChanged: (value) => setDialogState(() => codConfirmed = value == true),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final picked = await _pickProofImage();
+                    if (picked != null) setDialogState(() => proofImage = picked);
+                  },
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: Text(order.proofImageUrl.isEmpty && proofImage == null
+                      ? 'Upload proof photo *'
+                      : proofImage != null
+                          ? 'Proof selected'
+                          : 'Replace proof photo'),
+                ),
+                if (dialogError != null) ...[
+                  const SizedBox(height: 10),
+                  Text(dialogError!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                final codAmount = double.tryParse(codController.text.trim());
+                final missingProof = order.proofImageUrl.isEmpty && proofImage == null;
+                String? validation;
+                if (receiverController.text.trim().isEmpty) {
+                  validation = 'Receiver name is required.';
+                } else if (noteController.text.trim().isEmpty) {
+                  validation = 'Delivery note is required.';
+                } else if (order.codAmount > 0 && !codConfirmed) {
+                  validation = 'Confirm COD collection before completing this delivery.';
+                } else if (order.codAmount > 0 && (codAmount == null || codAmount <= 0)) {
+                  validation = 'Enter the COD amount collected.';
+                } else if (missingProof) {
+                  validation = 'Proof photo is required before marking delivered.';
+                }
+                if (validation != null) {
+                  setDialogState(() => dialogError = validation);
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
+              child: const Text('Mark delivered'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+    await _submitOrderStatus(
+      order,
+      'DELIVERED',
+      note: noteController.text,
+      receiverName: receiverController.text,
+      codCollected: order.codAmount > 0 ? true : null,
+      codCollectedAmount: order.codAmount > 0 ? double.tryParse(codController.text) : null,
+      paymentMethod: order.codAmount > 0 ? paymentMethod : null,
+      proofFile: proofImage == null ? null : File(proofImage!.path),
+    );
+  }
+
+  Future<void> _showExceptionDialog(DeliveryOrder order, String status) async {
+    final noteController = TextEditingController();
+    String reason = status == 'FAILED' ? 'CUSTOMER_NOT_AVAILABLE' : 'REFUSED_DELIVERY';
+    String? dialogError;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(status == 'FAILED' ? 'Mark failed' : 'Mark returned'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: reason,
+                  decoration: InputDecoration(labelText: status == 'FAILED' ? 'Failed reason *' : 'Return reason *', border: const OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'CUSTOMER_NOT_AVAILABLE', child: Text('Customer not available')),
+                    DropdownMenuItem(value: 'WRONG_ADDRESS', child: Text('Wrong address')),
+                    DropdownMenuItem(value: 'REFUSED_DELIVERY', child: Text('Refused delivery')),
+                    DropdownMenuItem(value: 'DAMAGED_GOODS', child: Text('Damaged goods')),
+                    DropdownMenuItem(value: 'PAYMENT_ISSUE', child: Text('Payment issue')),
+                    DropdownMenuItem(value: 'OTHER', child: Text('Other')),
+                  ],
+                  onChanged: (value) => setDialogState(() => reason = value ?? reason),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: noteController,
+                  maxLines: 3,
+                  decoration: InputDecoration(labelText: status == 'FAILED' ? 'Failed note' : 'Return note', border: const OutlineInputBorder()),
+                ),
+                if (dialogError != null) ...[
+                  const SizedBox(height: 10),
+                  Text(dialogError!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w700)),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (status == 'RETURNED' && reason == 'OTHER' && noteController.text.trim().isEmpty) {
+                  setDialogState(() => dialogError = 'Add a return note for Other.');
+                  return;
+                }
+                Navigator.pop(context, true);
+              },
+              child: Text(status == 'FAILED' ? 'Mark failed' : 'Mark returned'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+
+    await _submitOrderStatus(
+      order,
+      status,
+      note: noteController.text,
+      failedReason: reason,
+    );
+  }
+
+  Future<void> _submitOrderStatus(
+    DeliveryOrder order,
+    String status, {
+    String? note,
+    String? failedReason,
+    String? receiverName,
+    bool? codCollected,
+    double? codCollectedAmount,
+    String? paymentMethod,
+    File? proofFile,
+  }) async {
+    final actionError = _orderActionError(order, status);
+    if (actionError != null) {
+      _showActionError(actionError);
+      return;
+    }
+
+    await _run(() async {
+      if (proofFile != null) {
+        await _api.uploadProof(order.id, proofFile, receiverName: receiverName, deliveryNote: note);
+      }
+      await _api.updateOrderStatus(
+        order.id,
+        status,
+        note: note,
+        failedReason: failedReason,
+        receiverName: receiverName,
+        codCollected: codCollected,
+        codCollectedAmount: codCollectedAmount,
+        paymentMethod: paymentMethod,
+      );
+      if (status == 'IN_TRANSIT' || status == 'PICKED_UP') {
+        await _tracking.setStatus(ShipperStatus.busy);
+      }
+      if (status == 'DELIVERED' || status == 'FAILED' || status == 'RETURNED') {
+        await _tracking.setStatus(ShipperStatus.available);
+      }
+      await _loadOrders();
+    });
+  }
+
+  Future<void> _uploadProof(DeliveryOrder order) async {
+    final receiverController = TextEditingController(text: order.receiverName);
+    final noteController = TextEditingController(text: order.deliveryNote);
+    final image = await _pickProofImage();
     if (image == null) return;
 
     final confirmed = await showDialog<bool>(
@@ -454,7 +618,7 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
             const SizedBox(height: 12),
             _buildUserBanner(),
             const SizedBox(height: 12),
-            _buildShipperSelector(),
+            _buildBoundShipperCard(),
             if (shipper != null) ...[
               const SizedBox(height: 12),
               _buildStatusCard(shipper, activeOrders, codTotal),
@@ -586,33 +750,28 @@ class _ShipperHomeScreenState extends State<ShipperHomeScreen> {
     );
   }
 
-  Widget _buildShipperSelector() {
+  Widget _buildBoundShipperCard() {
+    final shipper = _selectedShipper;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Working shipper', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+            Text('Authenticated shipper profile', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
-            DropdownButtonFormField<int>(
-              value: _selectedShipper?.id,
-              isExpanded: true,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.delivery_dining),
-                labelText: 'Select shipper profile',
+            if (shipper != null)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const CircleAvatar(child: Icon(Icons.delivery_dining)),
+                title: Text(shipper.displayName, style: const TextStyle(fontWeight: FontWeight.w900)),
+                subtitle: Text('${shipper.plateLabel} • ${shipper.vehicleType} • profile #${shipper.id}'),
+              )
+            else
+              const Text(
+                'No linked shipper profile is available for this login, so GPS updates and order actions are disabled.',
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
-              items: _shippers
-                  .map(
-                    (shipper) => DropdownMenuItem<int>(
-                      value: shipper.id,
-                      child: Text('${shipper.displayName} • ${shipper.plateLabel}'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: _busyAction ? null : _selectShipper,
-            ),
             if (_error != null) ...[
               const SizedBox(height: 10),
               Text(_error!, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),

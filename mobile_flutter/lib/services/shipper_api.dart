@@ -28,6 +28,14 @@ class ShipperApi {
     return list.map((e) => ShipperProfile.fromJson(e as Map<String, dynamic>)).toList();
   }
 
+  Future<ShipperProfile?> getAuthenticatedShipperProfile(int userId) async {
+    final shippers = await getShippers();
+    for (final shipper in shippers) {
+      if (shipper.userId == userId) return shipper;
+    }
+    return null;
+  }
+
   Future<ShipperProfile> getShipper(int shipperId) async {
     final data = await client.getJson('/shippers/$shipperId');
     return ShipperProfile.fromJson(data as Map<String, dynamic>);

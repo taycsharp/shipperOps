@@ -49,4 +49,14 @@ The location endpoint is authenticated now:
 POST /locations/update
 ```
 
-A shipper token can only update its own shipper profile. Admin/dispatcher tokens can access broader data, but this app is designed for shipper operation.
+A shipper token can only update its own shipper profile. The mobile app now also enforces this at the UI/client layer by binding the logged-in SHIPPER user to the shipper profile whose `user_id` matches `GET /auth/me`. Admin/dispatcher tokens can access broader data in the backend, but production admin/dispatcher testing must remain in the web dashboard or a separate simulator rather than this shipper app.
+
+## Mobile workflow alignment
+
+The app exposes only backend-valid order transitions for shippers:
+
+- `ASSIGNED` shows **Mark picked up** (`PICKED_UP`)
+- `PICKED_UP` shows **Start delivery** (`IN_TRANSIT`)
+- `IN_TRANSIT` shows **Delivered**, **Failed**, and **Returned**
+
+Before `DELIVERED`, the app collects receiver name, delivery note, proof upload, and COD confirmation/payment data when COD is due. Before `FAILED` or `RETURNED`, it collects a practical predefined reason and optional explanatory note.
