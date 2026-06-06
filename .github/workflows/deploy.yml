@@ -48,10 +48,10 @@ jobs:
             git pull
 
             echo "Rebuild and restart Docker Compose..."
-            docker compose up -d --build
+            docker compose --env-file .env.production up -d --build
 
             echo "Clean old Docker images..."
             docker image prune -f
 
             echo "Deployment result:"
-            docker compose ps
+            docker compose --env-file .env.production ps
