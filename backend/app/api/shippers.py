@@ -219,6 +219,35 @@ def link_shipper_account(shipper_id: int, payload: ShipperLinkAccount, db: Sessi
     return enrich_shipper(shipper, active_order_counts(db, [shipper.id]).get(shipper.id, 0))
 
 
+
+@router.post("/me/status", response_model=ShipperRead)
+async def update_my_shipper_status(
+    payload: ShipperStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.SHIPPER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only shipper users can update their own status",
+        )
+
+    shipper = shipper_query(db).filter(Shipper.user_id == current_user.id).first()
+    if not shipper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shipper profile not found",
+        )
+
+    shipper.status = payload.status
+    shipper.last_seen_at = datetime.utcnow()
+    db.commit()
+    db.refresh(shipper)
+
+    await manager.broadcast(serialize_shipper_status(shipper))
+    return enrich_shipper(shipper, active_order_counts(db, [shipper.id]).get(shipper.id, 0))
+
+
 @router.post("/{shipper_id}/status", response_model=ShipperRead)
 async def update_shipper_status(shipper_id: int, payload: ShipperStatusUpdate, db: Session = Depends(get_db), _: User = Depends(require_admin_or_dispatcher)):
     shipper = get_managed_shipper_or_404(shipper_id, db)

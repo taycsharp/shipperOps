@@ -22,17 +22,14 @@ class ShipperApi {
     return AppUser.fromJson(data as Map<String, dynamic>);
   }
 
-  Future<List<ShipperProfile>> getShippers() async {
+  Future<ShipperProfile> getMyShipperProfile() async {
     final data = await client.getJson('/shippers/me');
-    final list = data is List ? data : (data['shippers'] ?? []) as List<dynamic>;
-    return list.map((e) => ShipperProfile.fromJson(e as Map<String, dynamic>)).toList();
+    return ShipperProfile.fromJson(data as Map<String, dynamic>);
   }
 
   Future<ShipperProfile?> getAuthenticatedShipperProfile(int userId) async {
-    final shippers = await getShippers();
-    for (final shipper in shippers) {
-      if (shipper.userId == userId) return shipper;
-    }
+    final shipper = await getMyShipperProfile();
+    if (shipper.userId == userId) return shipper;
     return null;
   }
 
@@ -42,7 +39,7 @@ class ShipperApi {
   }
 
   Future<ShipperProfile> updateStatus(int shipperId, ShipperStatus status) async {
-    final data = await client.postJson('/shippers/$shipperId/status', {
+    final data = await client.postJson('/shippers/me/status', {
       'status': statusToApi(status),
     });
     return ShipperProfile.fromJson(data as Map<String, dynamic>);
