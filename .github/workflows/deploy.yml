@@ -12,6 +12,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Connect GitHub runner to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
+      - name: Test Tailscale connection
+        run: |
+          echo "Tailscale status:"
+          tailscale status
+
+          echo "Test connection to Linux PC:"
+          ping -c 3 ${{ secrets.LINUX_HOST }}
+
       - name: Deploy to Linux PC via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
