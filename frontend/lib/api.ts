@@ -34,10 +34,33 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
   };
 }
 
+function formatApiDetail(detail: unknown): string | null {
+  if (!detail) return null;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return String(item);
+        const entry = item as { loc?: unknown[]; msg?: unknown; type?: unknown };
+        const location = Array.isArray(entry.loc)
+          ? entry.loc.filter((part) => part !== "body").join(".")
+          : "";
+        const message = typeof entry.msg === "string" ? entry.msg : typeof entry.type === "string" ? entry.type : JSON.stringify(item);
+        return location ? `${location}: ${message}` : message;
+      })
+      .join("; ");
+  }
+  try {
+    return JSON.stringify(detail);
+  } catch {
+    return String(detail);
+  }
+}
+
 async function parseApiError(res: Response) {
   try {
     const data = await res.json();
-    return data?.detail || `API error: ${res.status}`;
+    return formatApiDetail(data?.detail) || `API error: ${res.status}`;
   } catch {
     return `API error: ${res.status}`;
   }

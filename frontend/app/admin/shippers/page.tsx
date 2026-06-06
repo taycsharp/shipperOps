@@ -24,6 +24,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormHelperText,
   Grid,
   IconButton,
   InputAdornment,
@@ -55,9 +56,53 @@ type ShipperForm = {
   vehiclePlate: string;
   status: ShipperStatus;
 };
+type FormErrors = Partial<Record<keyof ShipperForm | "form", string>>;
 
-const statusFilters: StatusFilter[] = ["ALL", "AVAILABLE", "BUSY", "OFFLINE", "SUSPENDED"];
-const emptyForm: ShipperForm = { name: "", email: "", phone: "", password: "", userId: "", vehicleType: "", vehiclePlate: "", status: "OFFLINE" };
+const shipperStatuses: ShipperStatus[] = ["AVAILABLE", "BUSY", "OFFLINE", "SUSPENDED"];
+const statusFilters: StatusFilter[] = ["ALL", ...shipperStatuses];
+const vehicleTypes = ["Motorbike", "Bicycle", "Car", "Van", "Truck"] as const;
+const emptyForm: ShipperForm = { name: "", email: "", phone: "", password: "", userId: "", vehicleType: "Motorbike", vehiclePlate: "", status: "OFFLINE" };
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function validateForm(form: ShipperForm, mode: DialogMode, useExistingAccount: boolean): FormErrors {
+  const errors: FormErrors = {};
+  const name = form.name.trim();
+  const email = form.email.trim();
+  const phone = form.phone.trim();
+  const password = form.password;
+  const vehicleType = form.vehicleType.trim();
+  const vehiclePlate = form.vehiclePlate.trim();
+
+  if (mode === "create" && useExistingAccount) {
+    if (!form.userId || Number.isNaN(Number(form.userId)) || Number(form.userId) <= 0) {
+      errors.userId = "Choose an existing SHIPPER login account.";
+    }
+  } else {
+    if (!name) errors.name = "Name is required.";
+    if (!email) errors.email = "Email is required.";
+    else if (!isValidEmail(email)) errors.email = "Enter a valid email address.";
+    if (phone.length > 40) errors.phone = "Phone must be 40 characters or fewer.";
+    if (mode === "create") {
+      if (!password) errors.password = "Temporary password is required.";
+      else if (password.length < 8) errors.password = "Temporary password must be at least 8 characters.";
+      else if (new TextEncoder().encode(password).length > 72) errors.password = "Temporary password must be 72 bytes or fewer.";
+    }
+  }
+
+  if (!vehicleType) errors.vehicleType = "Vehicle type is required.";
+  else if (!vehicleTypes.includes(vehicleType as (typeof vehicleTypes)[number])) errors.vehicleType = "Choose a supported vehicle type.";
+  if (vehiclePlate.length > 40) errors.vehiclePlate = "Vehicle plate must be 40 characters or fewer.";
+  if (!shipperStatuses.includes(form.status)) errors.status = "Choose a supported shipper status.";
+
+  return errors;
+}
+
+function hasErrors(errors: FormErrors) {
+  return Object.keys(errors).length > 0;
+}
 
 function signalScore(shipper: Shipper) {
   if (!shipper.current_lat || !shipper.current_lng) return 0;
@@ -98,6 +143,8 @@ export default function ShippersPage() {
   const [editing, setEditing] = useState<Shipper | null>(null);
   const [form, setForm] = useState<ShipperForm>(emptyForm);
   const [useExistingAccount, setUseExistingAccount] = useState(false);
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const [serverError, setServerError] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -136,6 +183,8 @@ export default function ShippersPage() {
     setEditing(null);
     setForm(emptyForm);
     setUseExistingAccount(false);
+    setFormErrors({});
+    setServerError("");
     setDialogOpen(true);
   }
 
@@ -144,28 +193,55 @@ export default function ShippersPage() {
     setEditing(shipper);
     setForm(toForm(shipper));
     setUseExistingAccount(false);
+    setFormErrors({});
+    setServerError("");
     setDialogOpen(true);
   }
 
   async function submitForm() {
+    const nextErrors = validateForm(form, mode, useExistingAccount);
+    setFormErrors(nextErrors);
+    setServerError("");
+    if (hasErrors(nextErrors)) return;
+
+    const vehicleType = form.vehicleType.trim();
+    const vehiclePlate = form.vehiclePlate.trim() || null;
+
     try {
       if (mode === "create") {
-        const account = useExistingAccount
-          ? { user_id: Number(form.userId) }
-          : { user: { name: form.name, email: form.email, phone: form.phone || null, password: form.password } };
-        await apiPost<Shipper>("/shippers", { ...account, vehicle_type: form.vehicleType || null, vehicle_plate: form.vehiclePlate || null, status: form.status });
+        const payload = useExistingAccount
+          ? {
+              user_id: Number(form.userId),
+              vehicle_type: vehicleType,
+              vehicle_plate: vehiclePlate,
+              status: form.status,
+            }
+          : {
+              user: {
+                name: form.name.trim(),
+                email: form.email.trim(),
+                phone: form.phone.trim() || null,
+                password: form.password,
+              },
+              vehicle_type: vehicleType,
+              vehicle_plate: vehiclePlate,
+              status: form.status,
+            };
+        await apiPost<Shipper>("/shippers", payload);
       } else if (editing) {
         await apiPut<Shipper>(`/shippers/${editing.id}`, {
-          user: { name: form.name, email: form.email, phone: form.phone || null },
-          vehicle_type: form.vehicleType || null,
-          vehicle_plate: form.vehiclePlate || null,
+          user: { name: form.name.trim(), email: form.email.trim(), phone: form.phone.trim() || null },
+          vehicle_type: vehicleType,
+          vehicle_plate: vehiclePlate,
           status: form.status,
         });
       }
       setDialogOpen(false);
       await loadData();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not save shipper");
+      const detail = error instanceof Error ? error.message : "Could not save shipper";
+      setServerError(detail);
+      setMessage(detail);
     }
   }
 
@@ -300,6 +376,7 @@ export default function ShippersPage() {
         <DialogTitle>{mode === "create" ? "Create shipper" : "Edit shipper"}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ mt: 1 }}>
+            {serverError && <Alert severity="error">{serverError}</Alert>}
             {mode === "create" && (
               <FormControl size="small">
                 <InputLabel>Login account mode</InputLabel>
@@ -310,27 +387,35 @@ export default function ShippersPage() {
               </FormControl>
             )}
             {mode === "create" && useExistingAccount ? (
-              <FormControl size="small">
+              <FormControl size="small" error={Boolean(formErrors.userId)}>
                 <InputLabel>Existing login</InputLabel>
                 <Select label="Existing login" value={form.userId} onChange={(event) => setForm({ ...form, userId: event.target.value })}>
                   {users.map((user) => <MenuItem key={user.id} value={String(user.id)}>#{user.id} · {user.name} · {user.email}</MenuItem>)}
                 </Select>
+                {formErrors.userId && <FormHelperText>{formErrors.userId}</FormHelperText>}
               </FormControl>
             ) : (
               <>
-                <TextField size="small" label="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-                <TextField size="small" label="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
-                <TextField size="small" label="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
-                {mode === "create" && <TextField size="small" label="Temporary password" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} helperText="Minimum 8 characters for the shipper login." />}
+                <TextField size="small" label="Name" value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} error={Boolean(formErrors.name)} helperText={formErrors.name} />
+                <TextField size="small" label="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} error={Boolean(formErrors.email)} helperText={formErrors.email} />
+                <TextField size="small" label="Phone" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} error={Boolean(formErrors.phone)} helperText={formErrors.phone} />
+                {mode === "create" && <TextField size="small" label="Temporary password" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} error={Boolean(formErrors.password)} helperText={formErrors.password || "Minimum 8 characters for the shipper login."} />}
               </>
             )}
-            <TextField size="small" label="Vehicle information" value={form.vehicleType} onChange={(event) => setForm({ ...form, vehicleType: event.target.value })} placeholder="Motorbike, van, refrigerated truck" />
-            <TextField size="small" label="Vehicle plate" value={form.vehiclePlate} onChange={(event) => setForm({ ...form, vehiclePlate: event.target.value.toUpperCase() })} />
-            <FormControl size="small">
+            <FormControl size="small" error={Boolean(formErrors.vehicleType)}>
+              <InputLabel>Vehicle type</InputLabel>
+              <Select label="Vehicle type" value={form.vehicleType} onChange={(event) => setForm({ ...form, vehicleType: event.target.value })}>
+                {vehicleTypes.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+              </Select>
+              {formErrors.vehicleType && <FormHelperText>{formErrors.vehicleType}</FormHelperText>}
+            </FormControl>
+            <TextField size="small" label="Vehicle plate" value={form.vehiclePlate} onChange={(event) => setForm({ ...form, vehiclePlate: event.target.value.toUpperCase() })} error={Boolean(formErrors.vehiclePlate)} helperText={formErrors.vehiclePlate} />
+            <FormControl size="small" error={Boolean(formErrors.status)}>
               <InputLabel>Status</InputLabel>
               <Select label="Status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as ShipperStatus })}>
-                {statusFilters.filter((item): item is ShipperStatus => item !== "ALL").map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
+                {shipperStatuses.map((item) => <MenuItem key={item} value={item}>{item}</MenuItem>)}
               </Select>
+              {formErrors.status && <FormHelperText>{formErrors.status}</FormHelperText>}
             </FormControl>
           </Stack>
         </DialogContent>
