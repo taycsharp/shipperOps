@@ -2,43 +2,67 @@ services:
   db:
     image: postgres:16
     container_name: shipper_postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: shipper
-      POSTGRES_PASSWORD: shipper_password
-      POSTGRES_DB: shipper_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - shipper_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
     container_name: shipper_fastapi
-    env_file:
-      - ./backend/.env.example
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ALGORITHM: ${JWT_ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      ENVIRONMENT: ${ENVIRONMENT}
+      CREATE_ALL_ON_STARTUP: ${CREATE_ALL_ON_STARTUP}
+      UPLOAD_FOLDER: ${UPLOAD_FOLDER}
+      UPLOAD_MAX_FILE_MB: ${UPLOAD_MAX_FILE_MB}
+    volumes:
+      - ./backend/uploads:/app/uploads
     ports:
       - "8000:8000"
     depends_on:
       - db
-    volumes:
-      - ./backend:/app
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+        NEXT_PUBLIC_MAP_MODE: ${NEXT_PUBLIC_MAP_MODE}
+        NEXT_PUBLIC_PMTILES_URL: ${NEXT_PUBLIC_PMTILES_URL}
     container_name: shipper_nextjs
+    restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      INTERNAL_API_URL: http://backend:8000
-      NEXT_PUBLIC_WS_URL: ws://localhost:8000/ws/locations
-      NEXT_PUBLIC_MAP_MODE: local
-      NEXT_PUBLIC_PMTILES_URL: /maps/hcm.pmtiles
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+      NEXT_PUBLIC_MAP_MODE: ${NEXT_PUBLIC_MAP_MODE}
+      NEXT_PUBLIC_PMTILES_URL: ${NEXT_PUBLIC_PMTILES_URL}
+      INTERNAL_API_URL: ${INTERNAL_API_URL}
     ports:
       - "3000:3000"
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: shipper_cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
+      - backend
 
 volumes:
   shipper_pgdata:
