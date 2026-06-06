@@ -34,7 +34,7 @@ class ShipperApi {
   }
 
   Future<ShipperProfile> getShipper(int shipperId) async {
-    final data = await client.getJson('/shippers/$shipperId');
+    final data = await client.getJson('/shippers/me');
     return ShipperProfile.fromJson(data as Map<String, dynamic>);
   }
 
