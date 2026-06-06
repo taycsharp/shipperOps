@@ -1,0 +1,44 @@
+name: Deploy ShipOps to Linux PC
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - codex/implement-shipper-administration-module
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Linux PC via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LINUX_HOST }}
+          username: ${{ secrets.LINUX_USER }}
+          key: ${{ secrets.LINUX_SSH_KEY }}
+          script: |
+            set -e
+
+            echo "Go to project folder..."
+            cd ${{ secrets.PROJECT_PATH }}
+
+            echo "Current folder:"
+            pwd
+
+            echo "Current branch:"
+            git branch --show-current
+
+            echo "Pull latest code..."
+            git fetch origin
+            git pull
+
+            echo "Rebuild and restart Docker Compose..."
+            docker compose up -d --build
+
+            echo "Clean old Docker images..."
+            docker image prune -f
+
+            echo "Deployment result:"
+            docker compose ps
