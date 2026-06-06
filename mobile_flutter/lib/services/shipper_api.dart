@@ -23,7 +23,7 @@ class ShipperApi {
   }
 
   Future<List<ShipperProfile>> getShippers() async {
-    final data = await client.getJson('/shippers');
+    final data = await client.getJson('/shippers/me');
     final list = data is List ? data : (data['shippers'] ?? []) as List<dynamic>;
     return list.map((e) => ShipperProfile.fromJson(e as Map<String, dynamic>)).toList();
   }

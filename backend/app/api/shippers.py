@@ -11,7 +11,7 @@ from app.models.shipper import Shipper
 from app.models.user import User
 from app.schemas.shipper import ShipperCreate, ShipperLinkAccount, ShipperRead, ShipperStatusUpdate, ShipperUpdate
 from app.services.order_workflow import ACTIVE_ORDER_STATUSES
-from app.services.security import hash_password, require_admin_or_dispatcher
+from app.services.security import get_current_user, hash_password, require_admin_or_dispatcher
 from app.services.serializers import serialize_shipper_status
 from app.services.websocket_manager import manager
 
@@ -27,6 +27,27 @@ def get_managed_shipper_or_404(shipper_id: int, db: Session) -> Shipper:
     if not shipper:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Shipper not found")
     return shipper
+
+
+@router.get("/me", response_model=ShipperRead)
+def get_my_shipper_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if current_user.role != UserRole.SHIPPER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only shipper users can access this profile",
+        )
+
+    shipper = shipper_query(db).filter(Shipper.user_id == current_user.id).first()
+    if not shipper:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Shipper profile not found",
+        )
+
+    return enrich_shipper(shipper, active_order_counts(db, [shipper.id]).get(shipper.id, 0))
 
 
 def active_order_counts(db: Session, shipper_ids: list[int]) -> dict[int, int]:
