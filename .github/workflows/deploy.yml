@@ -42,9 +42,10 @@ jobs:
             echo "Current branch:"
             git branch --show-current
 
-            echo "Pull latest code..."
+            echo "Sync latest code from triggering branch..."
             git fetch origin
-            git pull
+            git checkout ${{ github.ref_name }}
+            git reset --hard origin/${{ github.ref_name }}
 
             echo "Rebuild and restart Docker Compose..."
             docker compose --env-file .env.production up -d --build
