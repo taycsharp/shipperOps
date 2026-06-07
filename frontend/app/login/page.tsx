@@ -12,7 +12,7 @@ import { useAuth } from "../../context/AuthContext";
 export default function LoginPage() {
   const router = useRouter();
   const { refreshUser } = useAuth();
-  const [email, setEmail] = useState("admin@shipops.local");
+  const [email, setEmail] = useState("admin@dolasol.com");
   const [password, setPassword] = useState("admin123");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,7 +68,14 @@ export default function LoginPage() {
           </Stack>
 
           <Alert severity="info" sx={{ mt: 3 }}>
-            Demo seed usually includes admin@shipops.local / admin123, dispatcher@shipops.local / dispatcher123, and shipper accounts.
+            <Typography component="p" fontWeight={800} sx={{ mb: 0.75 }}>
+              Demo / testing accounts
+            </Typography>
+            <Stack component="ul" spacing={0.5} sx={{ m: 0, pl: 2.5 }}>
+              <Typography component="li" variant="body2">Admin: admin@dolasol.com / admin123</Typography>
+              <Typography component="li" variant="body2">Dispatcher: dispatcher@dolasol.com / dispatcher123</Typography>
+              <Typography component="li" variant="body2">Shipper mobile test: shipper1@example.com / shipper123</Typography>
+            </Stack>
           </Alert>
         </CardContent>
       </Card>
